@@ -49,14 +49,21 @@ import geminiRoutes from './routes/gemini.js';
 import pluginsRoutes from './routes/plugins.js';
 import messagesRoutes from './routes/messages.js';
 import providerRoutes from './modules/providers/provider.routes.js';
+import containersRoutes from './routes/containers.js';
+import credentialsRoutes from './routes/credentials.js';
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
 import { initializeDatabase, sessionNamesDb, applyCustomSessionNames } from './database/db.js';
 import { configureWebPush } from './services/vapid-keys.js';
 import { validateApiKey, authenticateToken, authenticateWebSocket } from './middleware/auth.js';
 import { IS_PLATFORM } from './constants/config.js';
 import { getConnectableHost } from '../shared/networkHosts.js';
+import { containerManager } from './container/manager.js';
+import { createProxyMiddleware, healthCheckMiddleware } from './middleware/proxy.js';
 
 const VALID_PROVIDERS = ['claude', 'codex', 'cursor', 'gemini'];
+
+// Multi-user mode configuration
+const MULTI_USER_MODE = process.env.MULTI_USER_MODE === 'true';
 
 // File system watchers for provider project/session folders
 const PROVIDER_WATCH_PATHS = [
@@ -270,7 +277,8 @@ app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
-        installMode
+        installMode,
+        multiUserMode: MULTI_USER_MODE
     });
 });
 
@@ -280,44 +288,51 @@ app.use('/api', validateApiKey);
 // Authentication routes (public)
 app.use('/api/auth', authRoutes);
 
-// Projects API Routes (protected)
-app.use('/api/projects', authenticateToken, projectsRoutes);
+// Container management routes (protected) - Only in multi-user mode
+if (MULTI_USER_MODE) {
+    app.use('/api/containers', authenticateToken, containersRoutes);
+    app.use('/api/credentials', authenticateToken, credentialsRoutes);
+}
 
-// Git API Routes (protected)
-app.use('/api/git', authenticateToken, gitRoutes);
+// In multi-user mode, proxy certain routes to user containers
+// Otherwise, handle routes directly
+if (MULTI_USER_MODE) {
+    // Routes that should be proxied to user containers
+    const proxyMiddleware = createProxyMiddleware();
 
-// Cursor API Routes (protected)
-app.use('/api/cursor', authenticateToken, cursorRoutes);
+    // These routes are proxied to user containers
+    app.use('/api/projects', authenticateToken, proxyMiddleware);
+    app.use('/api/git', authenticateToken, proxyMiddleware);
+    app.use('/api/files', authenticateToken, proxyMiddleware);
+    app.use('/api/sessions', authenticateToken, proxyMiddleware);
 
-// TaskMaster API Routes (protected)
-app.use('/api/taskmaster', authenticateToken, taskmasterRoutes);
-
-// MCP utilities
-app.use('/api/mcp-utils', authenticateToken, mcpUtilsRoutes);
-
-// Commands API Routes (protected)
-app.use('/api/commands', authenticateToken, commandsRoutes);
-
-// Settings API Routes (protected)
-app.use('/api/settings', authenticateToken, settingsRoutes);
-
-// User API Routes (protected)
-app.use('/api/user', authenticateToken, userRoutes);
-
-// Codex API Routes (protected)
-app.use('/api/codex', authenticateToken, codexRoutes);
-
-// Gemini API Routes (protected)
-app.use('/api/gemini', authenticateToken, geminiRoutes);
-
-// Plugins API Routes (protected)
-app.use('/api/plugins', authenticateToken, pluginsRoutes);
-
-// Unified session messages route (protected)
-app.use('/api/sessions', authenticateToken, messagesRoutes);
-
-// Unified provider MCP routes (protected)
-app.use('/api/providers', authenticateToken, providerRoutes);
+    // Other routes handled by gateway
+    app.use('/api/cursor', authenticateToken, cursorRoutes);
+    app.use('/api/taskmaster', authenticateToken, taskmasterRoutes);
+    app.use('/api/mcp-utils', authenticateToken, mcpUtilsRoutes);
+    app.use('/api/commands', authenticateToken, commandsRoutes);
+    app.use('/api/settings', authenticateToken, settingsRoutes);
+    app.use('/api/user', authenticateToken, userRoutes);
+    app.use('/api/codex', authenticateToken, codexRoutes);
+    app.use('/api/gemini', authenticateToken, geminiRoutes);
+    app.use('/api/plugins', authenticateToken, pluginsRoutes);
+    app.use('/api/providers', authenticateToken, providerRoutes);
+} else {
+    // Single-user mode - all routes handled directly
+    app.use('/api/projects', authenticateToken, projectsRoutes);
+    app.use('/api/git', authenticateToken, gitRoutes);
+    app.use('/api/cursor', authenticateToken, cursorRoutes);
+    app.use('/api/taskmaster', authenticateToken, taskmasterRoutes);
+    app.use('/api/mcp-utils', authenticateToken, mcpUtilsRoutes);
+    app.use('/api/commands', authenticateToken, commandsRoutes);
+    app.use('/api/settings', authenticateToken, settingsRoutes);
+    app.use('/api/user', authenticateToken, userRoutes);
+    app.use('/api/codex', authenticateToken, codexRoutes);
+    app.use('/api/gemini', authenticateToken, geminiRoutes);
+    app.use('/api/plugins', authenticateToken, pluginsRoutes);
+    app.use('/api/sessions', authenticateToken, messagesRoutes);
+    app.use('/api/providers', authenticateToken, providerRoutes);
+}
 
 // Agent API Routes (uses API key authentication)
 app.use('/api/agent', agentRoutes);
@@ -2315,6 +2330,19 @@ async function startServer() {
         // Configure Web Push (VAPID keys)
         configureWebPush();
 
+        // Initialize container manager if in multi-user mode
+        if (MULTI_USER_MODE) {
+            console.log(`${c.info('[INFO]')} Multi-user mode enabled - initializing container manager`);
+            try {
+                await containerManager.initialize();
+                console.log(`${c.success('[SUCCESS]')} Container manager initialized`);
+            } catch (error) {
+                console.error(`${c.error('[ERROR]')} Failed to initialize container manager:`, error.message);
+                console.error(`${c.error('[ERROR]')} Multi-user features will not be available`);
+                // Continue startup - gateway can still serve auth endpoints
+            }
+        }
+
         // Check if running in production mode (dist folder exists)
         const distIndexPath = path.join(APP_ROOT, 'dist', 'index.html');
         const isProduction = fs.existsSync(distIndexPath);
@@ -2351,13 +2379,30 @@ async function startServer() {
             });
         });
 
-        // Clean up plugin processes on shutdown
-        const shutdownPlugins = async () => {
+        // Clean up on shutdown
+        const shutdown = async (signal) => {
+            console.log(`\n${c.info('[INFO]')} Received ${signal}, shutting down gracefully...`);
+
+            // Stop plugin processes
             await stopAllPlugins();
+
+            // Stop all containers if in multi-user mode
+            if (MULTI_USER_MODE && containerManager.initialized) {
+                console.log(`${c.info('[INFO]')} Stopping all containers...`);
+                try {
+                    await containerManager.shutdownAll();
+                    console.log(`${c.success('[SUCCESS]')} All containers stopped`);
+                } catch (error) {
+                    console.error(`${c.error('[ERROR]')} Failed to stop containers:`, error.message);
+                }
+            }
+
+            console.log(`${c.info('[INFO]')} Shutdown complete`);
             process.exit(0);
         };
-        process.on('SIGTERM', () => void shutdownPlugins());
-        process.on('SIGINT', () => void shutdownPlugins());
+
+        process.on('SIGTERM', () => void shutdown('SIGTERM'));
+        process.on('SIGINT', () => void shutdown('SIGINT'));
     } catch (error) {
         console.error('[ERROR] Failed to start server:', error);
         process.exit(1);
