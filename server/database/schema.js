@@ -78,8 +78,11 @@ CREATE TABLE IF NOT EXISTS user_credentials (
   credential_name TEXT NOT NULL,
   credential_type TEXT NOT NULL,
   credential_value TEXT NOT NULL,
+  encryption_iv TEXT,
+  auth_tag TEXT,
   description TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   is_active BOOLEAN DEFAULT 1,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
@@ -87,6 +90,7 @@ CREATE TABLE IF NOT EXISTS user_credentials (
 CREATE INDEX IF NOT EXISTS idx_user_credentials_user_id ON user_credentials(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_credentials_type ON user_credentials(credential_type);
 CREATE INDEX IF NOT EXISTS idx_user_credentials_active ON user_credentials(is_active);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_credentials_unique ON user_credentials(user_id, credential_name);
 
 ${USER_NOTIFICATION_PREFERENCES_TABLE_SQL}
 
@@ -99,4 +103,64 @@ ${SESSION_NAMES_TABLE_SQL}
 ${SESSION_NAMES_LOOKUP_INDEX_SQL}
 
 ${APP_CONFIG_TABLE_SQL}
+
+CREATE TABLE IF NOT EXISTS user_containers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL UNIQUE,
+  container_id TEXT,
+  container_name TEXT NOT NULL,
+  internal_port INTEGER NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('creating', 'created', 'starting', 'running', 'stopping', 'stopped', 'error')),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  started_at DATETIME,
+  stopped_at DATETIME,
+  last_health_check DATETIME,
+  volume_name TEXT NOT NULL,
+  network_name TEXT NOT NULL,
+  agent_type TEXT DEFAULT 'claude-code',
+  error_message TEXT,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_containers_user_id ON user_containers(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_containers_status ON user_containers(status);
+CREATE INDEX IF NOT EXISTS idx_user_containers_container_id ON user_containers(container_id);
+
+CREATE TABLE IF NOT EXISTS container_ports (
+  port INTEGER PRIMARY KEY,
+  user_id INTEGER,
+  container_id TEXT,
+  allocated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  released_at DATETIME,
+  is_available BOOLEAN DEFAULT 1,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_container_ports_available ON container_ports(is_available);
+
+CREATE TABLE IF NOT EXISTS container_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  container_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  event_data TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_container_logs_user_id ON container_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_container_logs_created_at ON container_logs(created_at);
+
+CREATE TABLE IF NOT EXISTS credential_audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  credential_id INTEGER,
+  action TEXT NOT NULL,
+  ip_address TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_credential_audit_user ON credential_audit_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_credential_audit_created ON credential_audit_log(created_at);
 `;
