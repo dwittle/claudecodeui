@@ -96,6 +96,8 @@
     "tasks": "Tasks",
     "notifications": "Notifications",
     "plugins": "Plugins",
+    "container": "Container",
+    "credentials": "Credentials",
     "about": "About"
   },
   "notifications": {
