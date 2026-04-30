@@ -559,6 +559,208 @@ const appConfigDb = {
   }
 };
 
+// Container management database operations
+const containerDb = {
+  createContainer: (data) => {
+    const { userId, containerId, containerName, internalPort, volumeName, networkName, agentType = 'claude-code' } = data;
+    const stmt = db.prepare(`
+      INSERT INTO user_containers
+      (user_id, container_id, container_name, internal_port, status, volume_name, network_name, agent_type)
+      VALUES (?, ?, ?, ?, 'created', ?, ?, ?)
+    `);
+    const result = stmt.run(userId, containerId, containerName, internalPort, volumeName, networkName, agentType);
+    return { id: result.lastInsertRowid };
+  },
+
+  getContainerByUserId: (userId) => {
+    return db.prepare('SELECT * FROM user_containers WHERE user_id = ?').get(userId);
+  },
+
+  getContainerById: (containerId) => {
+    return db.prepare('SELECT * FROM user_containers WHERE container_id = ?').get(containerId);
+  },
+
+  updateContainerStatus: (userId, status, errorMessage = null) => {
+    const now = new Date().toISOString();
+    const updates = ['status = ?', 'last_health_check = ?'];
+    const params = [status, now];
+
+    if (status === 'running') {
+      updates.push('started_at = ?');
+      params.push(now);
+    } else if (status === 'stopped') {
+      updates.push('stopped_at = ?');
+      params.push(now);
+    }
+
+    if (errorMessage) {
+      updates.push('error_message = ?');
+      params.push(errorMessage);
+    } else {
+      updates.push('error_message = NULL');
+    }
+
+    params.push(userId);
+    const stmt = db.prepare(`UPDATE user_containers SET ${updates.join(', ')} WHERE user_id = ?`);
+    return stmt.run(...params);
+  },
+
+  updateContainerId: (userId, containerId) => {
+    return db.prepare('UPDATE user_containers SET container_id = ? WHERE user_id = ?')
+      .run(containerId, userId);
+  },
+
+  deleteContainer: (userId) => {
+    return db.prepare('DELETE FROM user_containers WHERE user_id = ?').run(userId);
+  },
+
+  getAllContainers: () => {
+    return db.prepare('SELECT * FROM user_containers ORDER BY created_at DESC').all();
+  },
+
+  getRunningContainers: () => {
+    return db.prepare("SELECT * FROM user_containers WHERE status = 'running'").all();
+  },
+
+  // Port allocation
+  allocatePort: (userId, containerId, startPort = 4001, endPort = 5000) => {
+    // Find the first available port
+    for (let port = startPort; port <= endPort; port++) {
+      try {
+        db.prepare('INSERT INTO container_ports (port, user_id, container_id) VALUES (?, ?, ?)')
+          .run(port, userId, containerId);
+        return port;
+      } catch (error) {
+        // Port already allocated, try next one
+        continue;
+      }
+    }
+    throw new Error('No available ports in the configured range');
+  },
+
+  releasePort: (port) => {
+    return db.prepare('UPDATE container_ports SET is_available = 1, released_at = CURRENT_TIMESTAMP WHERE port = ?')
+      .run(port);
+  },
+
+  getAvailablePort: (startPort = 4001, endPort = 5000) => {
+    // Clean up stale allocations (optional: ports released > 24h ago)
+    db.prepare(`
+      DELETE FROM container_ports
+      WHERE is_available = 1 AND released_at < datetime('now', '-1 day')
+    `).run();
+
+    // Find first port not in use
+    for (let port = startPort; port <= endPort; port++) {
+      const existing = db.prepare('SELECT port FROM container_ports WHERE port = ?').get(port);
+      if (!existing) {
+        return port;
+      }
+    }
+
+    // All ports allocated, check for available released ports
+    const available = db.prepare('SELECT port FROM container_ports WHERE is_available = 1 LIMIT 1').get();
+    if (available) {
+      return available.port;
+    }
+
+    throw new Error('No available ports in the configured range');
+  },
+
+  getPortByUserId: (userId) => {
+    const result = db.prepare('SELECT port FROM container_ports WHERE user_id = ?').get(userId);
+    return result?.port;
+  },
+
+  // Container event logging
+  logContainerEvent: (userId, containerId, eventType, eventData = null) => {
+    return db.prepare(`
+      INSERT INTO container_logs (user_id, container_id, event_type, event_data)
+      VALUES (?, ?, ?, ?)
+    `).run(userId, containerId, eventType, eventData ? JSON.stringify(eventData) : null);
+  },
+
+  getContainerLogs: (userId, limit = 100) => {
+    return db.prepare(`
+      SELECT * FROM container_logs
+      WHERE user_id = ?
+      ORDER BY created_at DESC
+      LIMIT ?
+    `).all(userId, limit);
+  }
+};
+
+// Enhanced credential operations with encryption support
+const credentialDbEnhanced = {
+  // List credentials without decrypted values
+  listCredentials: (userId) => {
+    return db.prepare(`
+      SELECT id, credential_name, credential_type, description, created_at, updated_at
+      FROM user_credentials
+      WHERE user_id = ? AND is_active = 1
+      ORDER BY created_at DESC
+    `).all(userId);
+  },
+
+  // Get single credential with encryption data
+  getCredential: (credentialId) => {
+    return db.prepare('SELECT * FROM user_credentials WHERE id = ?').get(credentialId);
+  },
+
+  // Get all active credentials for a user (includes encrypted values)
+  getActiveCredentials: (userId) => {
+    return db.prepare('SELECT * FROM user_credentials WHERE user_id = ? AND is_active = 1')
+      .all(userId);
+  },
+
+  // Upsert credential with encryption data
+  upsertCredential: ({ userId, name, type, encryptedValue, iv, authTag, description }) => {
+    const existing = db.prepare(
+      'SELECT id FROM user_credentials WHERE user_id = ? AND credential_name = ?'
+    ).get(userId, name);
+
+    if (existing) {
+      db.prepare(`
+        UPDATE user_credentials
+        SET credential_value = ?, encryption_iv = ?, auth_tag = ?,
+            credential_type = ?, description = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(encryptedValue, iv, authTag, type, description, existing.id);
+      return { id: existing.id };
+    } else {
+      const result = db.prepare(`
+        INSERT INTO user_credentials
+        (user_id, credential_name, credential_type, credential_value, encryption_iv, auth_tag, description)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(userId, name, type, encryptedValue, iv, authTag, description);
+      return { id: result.lastInsertRowid };
+    }
+  },
+
+  // Soft delete credential
+  deleteCredential: (credentialId) => {
+    return db.prepare('UPDATE user_credentials SET is_active = 0 WHERE id = ?').run(credentialId);
+  },
+
+  // Log credential access for audit trail
+  logCredentialAccess: (userId, credentialId, action, ipAddress = null) => {
+    return db.prepare(`
+      INSERT INTO credential_audit_log (user_id, credential_id, action, ip_address)
+      VALUES (?, ?, ?, ?)
+    `).run(userId, credentialId, action, ipAddress);
+  },
+
+  // Get audit logs for a user
+  getAuditLogs: (userId, limit = 100) => {
+    return db.prepare(`
+      SELECT * FROM credential_audit_log
+      WHERE user_id = ?
+      ORDER BY created_at DESC
+      LIMIT ?
+    `).all(userId, limit);
+  }
+};
+
 // Backward compatibility - keep old names pointing to new system
 const githubTokensDb = {
   createGithubToken: (userId, tokenName, githubToken, description = null) => {
@@ -584,6 +786,8 @@ export {
   userDb,
   apiKeysDb,
   credentialsDb,
+  credentialDbEnhanced,
+  containerDb,
   notificationPreferencesDb,
   pushSubscriptionsDb,
   sessionNamesDb,
