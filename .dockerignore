@@ -1,0 +1,51 @@
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Development files
+.git
+.gitignore
+.env
+.env.local
+*.log
+
+# Build outputs
+dist
+dist-server
+build
+.vite
+
+# Documentation
+*.md
+!README.md
+docs
+
+# Test files
+test
+tests
+**/*.test.js
+**/*.spec.js
+coverage
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data directories
+data
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore

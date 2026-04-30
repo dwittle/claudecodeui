@@ -1,0 +1,84 @@
+version: '3.8'
+
+# Multi-User CloudCLI Architecture
+# This docker-compose file is for development and testing.
+# Production deployments should use the gateway container to manage worker containers dynamically.
+
+services:
+  # Gateway Container
+  # Handles authentication, proxying, and container orchestration
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${SERVER_PORT:-3001}:3001"
+    volumes:
+      # Mount Docker socket for container management
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Persistent data directory for gateway database
+      - ./data/gateway:/data
+      # Optional: Mount source code for development
+      # - .:/app
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - DATABASE_PATH=/data/auth.db
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - MULTI_USER_MODE=true
+      - ENCRYPTION_MASTER_KEY=${ENCRYPTION_MASTER_KEY}
+      - CONTAINER_BASE_IMAGE=cloudcliai/worker:latest
+      - CONTAINER_PORT_START=4001
+      - CONTAINER_PORT_END=5000
+      - CONTAINER_MEMORY_LIMIT=2g
+      - CONTAINER_CPU_LIMIT=1.0
+      - HOST=0.0.0.0
+      - SERVER_PORT=3001
+    networks:
+      - cloudcli-gateway
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Example Worker Container (for testing)
+  # In production, these are created dynamically by the gateway
+  worker-example:
+    build:
+      context: .
+      dockerfile: docker/worker/Dockerfile
+    environment:
+      - SERVER_PORT=4001
+      - USER_ID=999
+      - AGENT_TYPE=claude-code
+    volumes:
+      - worker-example-data:/home/agent
+    networks:
+      - cloudcli-net-example
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    # Don't expose ports externally - gateway proxies to internal ports
+    expose:
+      - "4001"
+    profiles:
+      - testing  # Only start with: docker-compose --profile testing up
+
+networks:
+  cloudcli-gateway:
+    driver: bridge
+    name: cloudcli-gateway
+  cloudcli-net-example:
+    driver: bridge
+    name: cloudcli-net-example
+    internal: false
+
+volumes:
+  worker-example-data:
+    name: cloudcli-data-example
