@@ -1,35 +1,42 @@
-# Multi-User Worker Container Image
-# This container runs an isolated CloudCLI instance for each user
-# Based on Docker's official Claude Code sandbox template
+# Multi-user worker container
+# Runs THIS repository's server in dev mode (tsx) per logged-in user.
+# Build context must be the repo root:
+#   podman build -t claudecodeui/worker:dev -f docker/worker/Dockerfile .
 
 FROM docker/sandbox-templates:claude-code
 
-# Install dependencies as root
 USER root
 
-# Copy and run CloudCLI installation script
-COPY shared/install-cloudcli.sh /tmp/install-cloudcli.sh
-RUN chmod +x /tmp/install-cloudcli.sh && /tmp/install-cloudcli.sh
+# Build toolchain for native modules (better-sqlite3, node-pty, bcrypt)
+# plus a few utilities the agent will commonly need.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential python3 python3-setuptools \
+      curl git sudo jq ripgrep sqlite3 zip unzip tree vim-tiny \
+    && rm -rf /var/lib/apt/lists/*
 
-# Switch to agent user for CloudCLI installation
+# App lives in /opt/cloudcli, owned by the unprivileged agent user
+# (provided by the sandbox base image).
+RUN mkdir -p /opt/cloudcli && chown -R agent:agent /opt/cloudcli
+
 USER agent
+WORKDIR /opt/cloudcli
 
-# Install CloudCLI globally and verify installation
-RUN npm install -g @cloudcli-ai/cloudcli && cloudcli --version
+# Install dependencies first for layer caching.
+COPY --chown=agent:agent package.json package-lock.json ./
+COPY --chown=agent:agent scripts/ scripts/
+RUN npm install --legacy-peer-deps
 
-# Copy worker entrypoint script
-COPY --chown=agent:agent worker/entrypoint.sh /home/agent/entrypoint.sh
-RUN chmod +x /home/agent/entrypoint.sh
+# Copy the rest of the source.
+COPY --chown=agent:agent . .
 
-# Set working directory
+# Workspace lives under the persistent volume mounted at /home/agent.
 WORKDIR /home/agent
+RUN mkdir -p /home/agent/workspace
 
-# Expose default port (will be overridden by container manager)
 EXPOSE 4001
 
-# Health check to verify CloudCLI server is responding
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD curl -f http://localhost:${SERVER_PORT:-4001}/health || exit 1
+  CMD curl -f http://localhost:${SERVER_PORT:-4001}/api/health || exit 1
 
-# Use entrypoint script to start CloudCLI
-ENTRYPOINT ["/home/agent/entrypoint.sh"]
+# Dev-mode entrypoint: tsx runs the TypeScript-aware server straight from source.
+CMD ["sh", "-c", "cd /opt/cloudcli && npx tsx --tsconfig server/tsconfig.json server/index.js"]

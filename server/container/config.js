@@ -9,9 +9,10 @@ export const CONTAINER_CONFIG = {
   // 'auto' will detect and use the first available runtime
   RUNTIME: process.env.CONTAINER_RUNTIME || 'auto',
 
-  // Container image for worker containers
-  // Using simple npm-based image with volume-mounted auth.js fix
-  BASE_IMAGE: process.env.CONTAINER_BASE_IMAGE || 'cloudcliai/worker:simple',
+  // Container image for worker containers.
+  // Built from this repo via docker/worker/Dockerfile.
+  // Build:  podman build -t claudecodeui/worker:dev -f docker/worker/Dockerfile .
+  BASE_IMAGE: process.env.CONTAINER_BASE_IMAGE || 'claudecodeui/worker:dev',
 
   // Naming prefixes
   NETWORK_PREFIX: 'cloudcli-net',

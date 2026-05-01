@@ -74,32 +74,29 @@ Each phase below contains: goal, files touched, exact changes (with code), verif
 
 **Dockerfile rewrite (target contents):**
 
-```dockerfile
-# Worker container — runs this repo's code in dev mode
-FROM node:22-slim
+The base image is `docker/sandbox-templates:claude-code` (Docker's published Claude Code sandbox template). It already includes Node, the `agent` user, and the `claude` CLI that the UI shells out to. We add build toolchain for native modules and copy the repo source.
 
-# Build toolchain for native modules (better-sqlite3, node-pty)
-RUN apt-get update && apt-get install -y \
-    curl git sudo python3 make g++ \
+```dockerfile
+FROM docker/sandbox-templates:claude-code
+
+USER root
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential python3 python3-setuptools \
+      curl git sudo jq ripgrep sqlite3 zip unzip tree vim-tiny \
     && rm -rf /var/lib/apt/lists/*
 
-RUN useradd -m -s /bin/bash agent && \
-    echo "agent ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
-
-WORKDIR /opt/cloudcli
-
-# Copy manifest first for layer caching
-COPY package.json package-lock.json ./
-COPY scripts/ scripts/
-RUN npm install --legacy-peer-deps
-
-# Copy source
-COPY --chown=agent:agent . .
-
-# Make sure agent owns the runtime directory
-RUN chown -R agent:agent /opt/cloudcli
+RUN mkdir -p /opt/cloudcli && chown -R agent:agent /opt/cloudcli
 
 USER agent
+WORKDIR /opt/cloudcli
+
+COPY --chown=agent:agent package.json package-lock.json ./
+COPY --chown=agent:agent scripts/ scripts/
+RUN npm install --legacy-peer-deps
+
+COPY --chown=agent:agent . .
+
 WORKDIR /home/agent
 RUN mkdir -p /home/agent/workspace
 
@@ -108,20 +105,18 @@ EXPOSE 4001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:${SERVER_PORT:-4001}/api/health || exit 1
 
-# tsx is in devDependencies; npm install above includes it
 CMD ["sh", "-c", "cd /opt/cloudcli && npx tsx --tsconfig server/tsconfig.json server/index.js"]
+```
+
+**Build context must be the repo root** (so `COPY package.json` etc. resolve):
+```bash
+podman build -t claudecodeui/worker:dev -f docker/worker/Dockerfile .
 ```
 
 **Config change (`server/container/config.js` line 14):**
 
 ```js
 BASE_IMAGE: process.env.CONTAINER_BASE_IMAGE || 'claudecodeui/worker:dev',
-```
-
-**Build:**
-```bash
-podman build -t claudecodeui/worker:dev -f docker/worker/Dockerfile .
-# or: docker build -t claudecodeui/worker:dev -f docker/worker/Dockerfile .
 ```
 
 **Verification:**
@@ -142,6 +137,7 @@ Expected: `{"status":"healthy",...}` or similar 2xx response.
 - The `postinstall` script (`scripts/fix-node-pty.js`) runs during `npm install`.
 - `tsx` is in `devDependencies`; `npm install` (no `--production`) keeps it.
 - The worker only needs the API; it doesn't serve the Vite frontend (gateway does). If `tsx server/index.js` tries to bundle the frontend on startup, fall back to running a prebuilt `dist-server/server/index.js` and check `package.json` `prebuild:server`/`build:server` scripts.
+- The base image `docker/sandbox-templates:claude-code` is Docker Inc's published agent sandbox template; pull it ahead of build if behind a restricted registry.
 
 **Commit message:** `feat(worker): build worker image from local repo via tsx`
 
