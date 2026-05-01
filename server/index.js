@@ -58,7 +58,7 @@ import { validateApiKey, authenticateToken, authenticateWebSocket } from './midd
 import { IS_PLATFORM } from './constants/config.js';
 import { getConnectableHost } from '../shared/networkHosts.js';
 import { containerManager } from './container/manager.js';
-import { createProxyMiddleware, healthCheckMiddleware } from './middleware/proxy.js';
+import { createProxyMiddleware, healthCheckMiddleware, setupWebSocketProxy } from './middleware/proxy.js';
 
 const VALID_PROVIDERS = ['claude', 'codex', 'cursor', 'gemini'];
 
@@ -217,46 +217,54 @@ const PTY_SESSION_TIMEOUT = 30 * 60 * 1000;
 const SHELL_URL_PARSE_BUFFER_LIMIT = 32768;
 import { stripAnsiSequences, normalizeDetectedUrl, extractUrlsFromText, shouldAutoOpenUrlFromOutput } from './utils/url-detection.js';
 
-// Single WebSocket server that handles both paths
-const wss = new WebSocketServer({
-    server,
-    verifyClient: (info) => {
-        console.log('WebSocket connection attempt to:', info.req.url);
+// WebSocket server setup: In multi-user mode, WebSocket connections are proxied
+// to worker containers. In non-multi-user mode, create a local WebSocket server.
+let wss = null;
 
-        // Platform mode: always allow connection
-        if (IS_PLATFORM) {
-            const user = authenticateWebSocket(null, info.req); // Will return first user
+if (!MULTI_USER_MODE) {
+    // Single WebSocket server that handles both paths
+    wss = new WebSocketServer({
+        server,
+        verifyClient: (info) => {
+            console.log('WebSocket connection attempt to:', info.req.url);
+
+            // Platform mode: always allow connection
+            if (IS_PLATFORM) {
+                const user = authenticateWebSocket(null, info.req); // Will return first user
+                if (!user) {
+                    console.log('[WARN] Platform mode: No user found in database');
+                    return false;
+                }
+                info.req.user = user;
+                console.log('[OK] Platform mode WebSocket authenticated for user:', user.username);
+                return true;
+            }
+
+            // Normal mode: verify token
+            // Extract token from query parameters or headers
+            const url = new URL(info.req.url, 'http://localhost');
+            const token = url.searchParams.get('token') ||
+                info.req.headers.authorization?.split(' ')[1];
+
+            // Verify token
+            const user = authenticateWebSocket(token, info.req);
             if (!user) {
-                console.log('[WARN] Platform mode: No user found in database');
+                console.log('[WARN] WebSocket authentication failed');
                 return false;
             }
+
+            // Store user info in the request for later use
             info.req.user = user;
-            console.log('[OK] Platform mode WebSocket authenticated for user:', user.username);
+            console.log('[OK] WebSocket authenticated for user:', user.username);
             return true;
         }
+    });
 
-        // Normal mode: verify token
-        // Extract token from query parameters or headers
-        const url = new URL(info.req.url, 'http://localhost');
-        const token = url.searchParams.get('token') ||
-            info.req.headers.authorization?.split(' ')[1];
-
-        // Verify token
-        const user = authenticateWebSocket(token, info.req);
-        if (!user) {
-            console.log('[WARN] WebSocket authentication failed');
-            return false;
-        }
-
-        // Store user info in the request for later use
-        info.req.user = user;
-        console.log('[OK] WebSocket authenticated for user:', user.username);
-        return true;
-    }
-});
-
-// Make WebSocket server available to routes
-app.locals.wss = wss;
+    // Make WebSocket server available to routes
+    app.locals.wss = wss;
+} else {
+    console.log('[INFO] Multi-user mode: WebSocket connections will be proxied to worker containers');
+}
 
 app.use(cors({ exposedHeaders: ['X-Refreshed-Token'] }));
 app.use(express.json({
@@ -1352,25 +1360,28 @@ function handlePluginWsProxy(clientWs, pathname) {
 }
 
 // WebSocket connection handler that routes based on URL path
-wss.on('connection', (ws, request) => {
-    const url = request.url;
-    console.log('[INFO] Client connected to:', url);
+// Only set up if we have a local WebSocket server (not in multi-user mode)
+if (wss) {
+    wss.on('connection', (ws, request) => {
+        const url = request.url;
+        console.log('[INFO] Client connected to:', url);
 
-    // Parse URL to get pathname without query parameters
-    const urlObj = new URL(url, 'http://localhost');
-    const pathname = urlObj.pathname;
+        // Parse URL to get pathname without query parameters
+        const urlObj = new URL(url, 'http://localhost');
+        const pathname = urlObj.pathname;
 
-    if (pathname === '/shell') {
-        handleShellConnection(ws);
-    } else if (pathname === '/ws') {
-        handleChatConnection(ws, request);
-    } else if (pathname.startsWith('/plugin-ws/')) {
-        handlePluginWsProxy(ws, pathname);
-    } else {
-        console.log('[WARN] Unknown WebSocket path:', pathname);
-        ws.close();
-    }
-});
+        if (pathname === '/shell') {
+            handleShellConnection(ws);
+        } else if (pathname === '/ws') {
+            handleChatConnection(ws, request);
+        } else if (pathname.startsWith('/plugin-ws/')) {
+            handlePluginWsProxy(ws, pathname);
+        } else {
+            console.log('[WARN] Unknown WebSocket path:', pathname);
+            ws.close();
+        }
+    });
+}
 
 /**
  * WebSocket Writer - Wrapper for WebSocket to match SSEStreamWriter interface
@@ -2338,6 +2349,19 @@ async function startServer() {
             try {
                 await containerManager.initialize();
                 console.log(`${c.success('[SUCCESS]')} Container manager initialized`);
+
+                // Set up WebSocket proxy for /ws, /api/terminal, /api/sessions
+                setupWebSocketProxy(server, async (req) => {
+                    // Extract token from query or Authorization header
+                    const url = new URL(req.url, `http://${req.headers.host}`);
+                    const token = url.searchParams.get('token') ||
+                                  req.headers.authorization?.split(' ')[1];
+
+                    // Use existing authenticateWebSocket function
+                    const user = authenticateWebSocket(token, req);
+                    return user;
+                });
+                console.log(`${c.success('[SUCCESS]')} WebSocket proxy configured`);
             } catch (error) {
                 console.error(`${c.error('[ERROR]')} Failed to initialize container manager:`, error.message);
                 console.error(`${c.error('[ERROR]')} Multi-user features will not be available`);
