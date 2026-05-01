@@ -35,13 +35,22 @@ const useWebSocketProviderState = (): WebSocketContextType => {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { token } = useAuth();
 
+  // Track real unmount only — must not run on every [token] re-run, otherwise
+  // React StrictMode's mount→cleanup→mount cycle leaves unmountedRef permanently
+  // true and connect() short-circuits forever.
   useEffect(() => {
-    connect();
-    
     return () => {
       unmountedRef.current = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    connect();
+
+    return () => {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
       if (wsRef.current) {
         wsRef.current.close();
@@ -56,7 +65,8 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       const wsUrl = buildWebSocketUrl(token);
 
       if (!wsUrl) return console.warn('No authentication token found for WebSocket connection');
-      
+
+      console.log('[WS] connecting', wsUrl);
       const websocket = new WebSocket(wsUrl);
 
       websocket.onopen = () => {
