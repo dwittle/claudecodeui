@@ -9,6 +9,12 @@ import {
   getNetworkName,
   parseMemoryLimit
 } from './config.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const APP_ROOT = path.resolve(__dirname, '../..');
 
 /**
  * Container Manager Service
@@ -145,6 +151,7 @@ class ContainerManager {
         `USER_ID=${userId}`,
         `AGENT_TYPE=${agentType}`,
         `JWT_SECRET=${jwtSecret}`,
+        `IS_PLATFORM=true`,  // Enable platform mode to skip user validation
       ];
 
       // Add credential environment variables
@@ -164,7 +171,11 @@ class ContainerManager {
       const hostConfig = {
         NetworkMode: networkName,
         Binds: [
-          `${volumeName}:/home/agent`
+          `${volumeName}:/home/agent`,
+          // Mount modified auth.js that trusts gateway authentication
+          // Note: CloudCLI uses dist-server (compiled) version at runtime
+          `${APP_ROOT}/server/middleware/auth.js:/usr/local/lib/node_modules/@cloudcli-ai/cloudcli/server/middleware/auth.js:ro`,
+          `${APP_ROOT}/server/middleware/auth.js:/usr/local/lib/node_modules/@cloudcli-ai/cloudcli/dist-server/server/middleware/auth.js:ro`
         ],
         PortBindings: {
           [`${port}/tcp`]: [{ HostPort: String(port) }]

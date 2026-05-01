@@ -36,7 +36,22 @@ const authenticateToken = async (req, res, next) => {
     }
   }
 
-  // Normal OSS JWT validation
+  // Worker container mode: Trust gateway authentication
+  // Gateway validates token and sets X-CloudCLI-User-ID header
+  const gatewayUserId = req.headers['x-cloudcli-user-id'];
+  const isWorkerContainer = process.env.USER_ID !== undefined; // Workers have USER_ID env var
+
+  if (isWorkerContainer && gatewayUserId) {
+    // Trust the gateway - it already validated the token
+    // Create a minimal user object with the ID from the gateway
+    req.user = {
+      id: parseInt(gatewayUserId),
+      username: `user-${gatewayUserId}`
+    };
+    return next();
+  }
+
+  // Normal OSS JWT validation (for gateway or standalone mode)
   const authHeader = req.headers['authorization'];
   let token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 

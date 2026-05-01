@@ -1,0 +1,39 @@
+# Local Worker Container for CloudCLI Multi-User Mode
+# Uses local codebase with authentication fixes
+
+FROM node:22-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    sudo \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create agent user
+RUN useradd -m -s /bin/bash agent && \
+    echo "agent ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Copy local CloudCLI code
+COPY --chown=agent:agent . /opt/cloudcli
+
+# Install dependencies
+WORKDIR /opt/cloudcli
+RUN npm install --legacy-peer-deps && npm run build || true
+
+# Switch to agent user
+USER agent
+WORKDIR /home/agent
+
+# Create workspace directory
+RUN mkdir -p /home/agent/workspace
+
+# Expose port (will be overridden by container manager)
+EXPOSE 4001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:${SERVER_PORT:-4001}/api/health || exit 1
+
+# Start CloudCLI server using local code
+CMD ["sh", "-c", "cd /opt/cloudcli && node server/index.js"]

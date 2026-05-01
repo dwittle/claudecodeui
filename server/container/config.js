@@ -10,7 +10,8 @@ export const CONTAINER_CONFIG = {
   RUNTIME: process.env.CONTAINER_RUNTIME || 'auto',
 
   // Container image for worker containers
-  BASE_IMAGE: process.env.CONTAINER_BASE_IMAGE || 'cloudcliai/sandbox:claude-code',
+  // Using simple npm-based image with volume-mounted auth.js fix
+  BASE_IMAGE: process.env.CONTAINER_BASE_IMAGE || 'cloudcliai/worker:simple',
 
   // Naming prefixes
   NETWORK_PREFIX: 'cloudcli-net',
