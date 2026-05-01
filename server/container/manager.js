@@ -145,6 +145,7 @@ class ContainerManager {
         `USER_ID=${userId}`,
         `AGENT_TYPE=${agentType}`,
         `JWT_SECRET=${jwtSecret}`,
+        `WORKSPACES_ROOT=/home/agent/workspace`,
       ];
 
       // Add credential environment variables

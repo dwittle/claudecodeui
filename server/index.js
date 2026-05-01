@@ -305,6 +305,7 @@ if (MULTI_USER_MODE) {
     app.use('/api/git', authenticateToken, proxyMiddleware);
     app.use('/api/files', authenticateToken, proxyMiddleware);
     app.use('/api/sessions', authenticateToken, proxyMiddleware);
+    app.use('/api/browse-filesystem', authenticateToken, proxyMiddleware);
 
     // Other routes handled by gateway
     app.use('/api/cursor', authenticateToken, cursorRoutes);
