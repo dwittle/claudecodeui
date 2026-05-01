@@ -103,8 +103,19 @@ const generateToken = (user) => {
   );
 };
 
-// WebSocket authentication function
-const authenticateWebSocket = (token) => {
+// WebSocket authentication function.
+// `req` is optional but required for the worker-trust path; the WebSocket
+// verifyClient hook in server/index.js has it as info.req.
+const authenticateWebSocket = (token, req) => {
+  // Worker container mode: trust gateway's X-CloudCLI-User-ID header.
+  // Mirrors the HTTP path in authenticateToken above.
+  const gatewayUserId = req?.headers?.['x-cloudcli-user-id'];
+  const isWorkerContainer = process.env.USER_ID !== undefined;
+  if (isWorkerContainer && gatewayUserId) {
+    const id = parseInt(gatewayUserId, 10);
+    return { id, userId: id, username: `user-${id}` };
+  }
+
   // Platform mode: bypass token validation, return first user
   if (IS_PLATFORM) {
     try {
