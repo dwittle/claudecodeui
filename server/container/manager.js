@@ -339,6 +339,66 @@ class ContainerManager {
   }
 
   /**
+   * Seed the gateway's user record into the worker's local SQLite DB.
+   *
+   * The worker's auth.js worker-trust branch sets req.user from the gateway header
+   * without a DB lookup, but downstream handlers query the local users table by id.
+   * Without a row, those queries return null and break things like project listing.
+   *
+   * Idempotent (INSERT OR IGNORE). Safe to call on every container start.
+   * @private
+   * @param {string} containerId
+   * @param {number} userId
+   */
+  async seedWorkerUser(containerId, userId) {
+    const { userDb } = await import('../database/db.js');
+    const user = userDb.getUserById(userId);
+    if (!user) {
+      throw new Error(`Cannot seed worker: user ${userId} not in gateway DB`);
+    }
+
+    // Build a node script that creates the DB file (and table) if missing,
+    // then inserts the user row. The schema here matches server/database/schema.js.
+    const script = `
+      const Database = require('better-sqlite3');
+      const fs = require('fs');
+      const path = require('path');
+      const dbPath = '/home/agent/.cloudcli/auth.db';
+      fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+      const db = new Database(dbPath);
+      db.exec(\`
+        CREATE TABLE IF NOT EXISTS users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          username TEXT UNIQUE NOT NULL,
+          password_hash TEXT NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          last_login DATETIME,
+          is_active BOOLEAN DEFAULT 1,
+          git_name TEXT,
+          git_email TEXT,
+          has_completed_onboarding BOOLEAN DEFAULT 0
+        );
+      \`);
+      db.prepare('INSERT OR IGNORE INTO users (id, username, password_hash, is_active) VALUES (?, ?, ?, 1)')
+        .run(${userId}, ${JSON.stringify(user.username)}, '');
+      console.log('[seedWorkerUser] ok', ${userId});
+    `;
+
+    const container = this.runtime.getContainer(containerId);
+    const exec = await container.exec({
+      Cmd: ['node', '-e', script],
+      AttachStdout: true,
+      AttachStderr: true,
+      User: 'agent',
+      // /opt/cloudcli is where this repo is installed in the worker image,
+      // so node can resolve the bundled better-sqlite3.
+      WorkingDir: '/opt/cloudcli',
+    });
+    await exec.start({ hijack: true, stdin: false });
+    console.log(`[ContainerManager] Seeded user ${userId} into worker DB`);
+  }
+
+  /**
    * Start a user's container
    * @param {number} userId
    * @returns {Promise<Object>} Container status
@@ -369,6 +429,17 @@ class ContainerManager {
 
       // Wait for health check
       await this.waitForHealthy(container, CONTAINER_CONFIG.STARTUP_TIMEOUT);
+
+      // Seed the gateway user row into the worker's local DB so handlers
+      // that look up the user by id (project listings, sessions, settings)
+      // succeed. Idempotent — safe across restarts.
+      try {
+        await this.seedWorkerUser(containerInfo.container_id, userId);
+      } catch (err) {
+        // Don't fail startup: the worker-trust auth path doesn't need this row,
+        // but downstream queries might. Log and continue.
+        console.error(`[ContainerManager] User seed failed for ${userId}:`, err.message);
+      }
 
       // Update status
       containerDb.updateContainerStatus(userId, 'running');
