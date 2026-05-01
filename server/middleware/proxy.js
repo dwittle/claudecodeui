@@ -57,17 +57,29 @@ export function createProxyMiddleware() {
           onError: (err, req, res) => {
             console.error(`[ProxyMiddleware] Error for user ${userId}: ${err.message}`);
             if (res.headersSent) return;
-            res.status(502).json({
-              error: 'Container communication error',
-              message: 'Failed to communicate with your development container.',
-              details: err.message
-            });
+            // Check if this is a regular HTTP response (not WebSocket)
+            if (res.status && typeof res.status === 'function') {
+              res.status(502).json({
+                error: 'Container communication error',
+                message: 'Failed to communicate with your development container.',
+                details: err.message
+              });
+            }
           },
 
           onProxyReq: (proxyReq, req) => {
             proxyReq.setHeader('X-CloudCLI-User-ID', userId);
             if (req.headers.host) {
               proxyReq.setHeader('X-Forwarded-Host', req.headers.host);
+            }
+
+            // If body was already parsed by express.json(), rewrite it to the proxy request
+            if (req.body && Object.keys(req.body).length > 0) {
+              const bodyData = JSON.stringify(req.body);
+              proxyReq.setHeader('Content-Type', 'application/json');
+              proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+              proxyReq.write(bodyData);
+              proxyReq.end();
             }
           },
 
