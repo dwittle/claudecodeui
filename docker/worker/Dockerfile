@@ -3,7 +3,7 @@
 # Build context must be the repo root:
 #   podman build -t claudecodeui/worker:dev -f docker/worker/Dockerfile .
 
-FROM docker/sandbox-templates:claude-code
+FROM docker.io/docker/sandbox-templates:claude-code
 
 USER root
 
