@@ -1,0 +1,105 @@
+version: '3.8'
+
+# Multi-User CloudCLI Architecture with Podman
+# This compose file is compatible with podman-compose
+# For rootless Podman, ensure the socket is enabled:
+#   systemctl --user enable --now podman.socket
+
+services:
+  # Gateway Container
+  # Handles authentication, proxying, and container orchestration
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${SERVER_PORT:-3001}:3001"
+    volumes:
+      # Mount Podman socket for container management
+      # Rootful Podman: /run/podman/podman.sock
+      # Rootless Podman: $XDG_RUNTIME_DIR/podman/podman.sock (typically /run/user/$UID/podman/podman.sock)
+      - ${PODMAN_SOCKET:-/run/podman/podman.sock}:/var/run/docker.sock:Z
+      # Persistent data directory for gateway database
+      - ./data/gateway:/data:Z
+      # Optional: Mount source code for development
+      # - .:/app:Z
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - DATABASE_PATH=/data/auth.db
+      - CONTAINER_RUNTIME=podman
+      - PODMAN_HOST=unix:///var/run/docker.sock
+      - MULTI_USER_MODE=true
+      - ENCRYPTION_MASTER_KEY=${ENCRYPTION_MASTER_KEY}
+      - CONTAINER_BASE_IMAGE=cloudcliai/worker:latest
+      - CONTAINER_PORT_START=4001
+      - CONTAINER_PORT_END=5000
+      - CONTAINER_MEMORY_LIMIT=2g
+      - CONTAINER_CPU_LIMIT=1.0
+      - HOST=0.0.0.0
+      - SERVER_PORT=3001
+    networks:
+      - cloudcli-gateway
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # For rootless Podman, you may need to adjust security options
+    security_opt:
+      - label=disable
+    # Userns mode for better isolation (optional)
+    # userns_mode: "keep-id"
+
+  # Example Worker Container (for testing)
+  # In production, these are created dynamically by the gateway
+  worker-example:
+    build:
+      context: .
+      dockerfile: docker/worker/Dockerfile
+    environment:
+      - SERVER_PORT=4001
+      - USER_ID=999
+      - AGENT_TYPE=claude-code
+    volumes:
+      - worker-example-data:/home/agent:Z
+    networks:
+      - cloudcli-net-example
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    # Don't expose ports externally - gateway proxies to internal ports
+    expose:
+      - "4001"
+    profiles:
+      - testing  # Only start with: podman-compose --profile testing up
+    security_opt:
+      - label=disable
+
+networks:
+  cloudcli-gateway:
+    driver: bridge
+  cloudcli-net-example:
+    driver: bridge
+    internal: false
+
+volumes:
+  worker-example-data:
+    driver: local
+
+# Podman-specific notes:
+# 1. SELinux labels (:Z) are added to volume mounts for better compatibility
+# 2. Socket path may differ between rootful and rootless Podman
+# 3. For rootless Podman:
+#    - Set PODMAN_SOCKET to $XDG_RUNTIME_DIR/podman/podman.sock
+#    - Enable socket: systemctl --user enable --now podman.socket
+#    - Run as regular user: podman-compose up
+# 4. For rootful Podman:
+#    - Default socket should work: /run/podman/podman.sock
+#    - Run with sudo: sudo podman-compose up
+# 5. Port mapping may require net.ipv4.ip_unprivileged_port_start=0 for rootless

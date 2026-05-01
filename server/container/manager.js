@@ -1,7 +1,7 @@
-import Docker from 'dockerode';
 import fs from 'fs/promises';
 import { containerDb, credentialDbEnhanced } from '../database/db.js';
 import { encryptionService } from '../services/encryption.js';
+import { containerRuntime } from './runtime.js';
 import {
   CONTAINER_CONFIG,
   getContainerName,
@@ -12,11 +12,11 @@ import {
 
 /**
  * Container Manager Service
- * Orchestrates Docker containers for multi-user isolation
+ * Orchestrates Docker/Podman containers for multi-user isolation
  */
 class ContainerManager {
   constructor() {
-    this.docker = null;
+    this.runtime = containerRuntime;
     this.initialized = false;
   }
 
@@ -30,14 +30,22 @@ class ContainerManager {
     }
 
     try {
-      // Connect to Docker daemon
-      this.docker = new Docker({
-        socketPath: CONTAINER_CONFIG.DOCKER_HOST.replace('unix://', '')
+      // Initialize container runtime (Docker or Podman)
+      const socketPath = CONTAINER_CONFIG.DOCKER_HOST
+        ? CONTAINER_CONFIG.DOCKER_HOST.replace('unix://', '')
+        : null;
+
+      await this.runtime.initialize({
+        socketPath: socketPath || undefined
       });
 
-      // Test Docker connection
-      await this.docker.ping();
-      console.log('[ContainerManager] Connected to Docker daemon');
+      const runtimeInfo = this.runtime.getRuntimeInfo();
+      console.log(`[ContainerManager] Connected to ${this.runtime.getName()}`);
+      console.log(`[ContainerManager] Socket: ${runtimeInfo.socketPath}`);
+
+      if (this.runtime.isRootless()) {
+        console.log('[ContainerManager] Running in rootless mode');
+      }
 
       // Verify encryption is configured
       if (!encryptionService.isConfigured()) {
@@ -47,7 +55,7 @@ class ContainerManager {
       this.initialized = true;
     } catch (error) {
       console.error('[ContainerManager] Failed to initialize:', error.message);
-      throw new Error(`Docker daemon unavailable: ${error.message}`);
+      throw new Error(`Container runtime unavailable: ${error.message}`);
     }
   }
 
@@ -127,11 +135,16 @@ class ContainerManager {
       // Get user's decrypted credentials
       const credentials = await this.getDecryptedCredentials(userId);
 
+      // Get JWT secret from gateway to share with worker container
+      const { appConfigDb } = await import('../database/db.js');
+      const jwtSecret = process.env.JWT_SECRET || appConfigDb.getOrCreateJwtSecret();
+
       // Build environment variables
       const envVars = [
         `SERVER_PORT=${port}`,
         `USER_ID=${userId}`,
         `AGENT_TYPE=${agentType}`,
+        `JWT_SECRET=${jwtSecret}`,
       ];
 
       // Add credential environment variables
@@ -147,30 +160,45 @@ class ContainerManager {
       // Create persistent volume
       await this.createUserVolume(volumeName);
 
-      // Create container
-      const container = await this.docker.createContainer({
+      // Build HostConfig based on runtime capabilities
+      const hostConfig = {
+        NetworkMode: networkName,
+        Binds: [
+          `${volumeName}:/home/agent`
+        ],
+        PortBindings: {
+          [`${port}/tcp`]: [{ HostPort: String(port) }]
+        },
+        AutoRemove: false,
+        RestartPolicy: {
+          Name: 'unless-stopped'
+        }
+      };
+
+      // Only add resource limits if not in rootless mode
+      // Rootless Podman doesn't have access to CPU cgroup controller by default
+      if (!this.runtime.isRootless()) {
+        hostConfig.Memory = parseMemoryLimit(CONTAINER_CONFIG.CONTAINER_MEMORY);
+        hostConfig.NanoCpus = CONTAINER_CONFIG.CONTAINER_CPU * 1e9;
+        console.log(`[ContainerManager] Setting resource limits: Memory=${CONTAINER_CONFIG.CONTAINER_MEMORY}, CPU=${CONTAINER_CONFIG.CONTAINER_CPU}`);
+      } else {
+        console.log(`[ContainerManager] Skipping resource limits (rootless mode)`);
+      }
+
+      // Create container with runtime-specific handling
+      const container = await this.runtime.createContainer({
         Image: CONTAINER_CONFIG.BASE_IMAGE,
         name: containerName,
         Env: envVars,
         ExposedPorts: {
           [`${port}/tcp`]: {}
         },
-        HostConfig: {
-          Memory: parseMemoryLimit(CONTAINER_CONFIG.CONTAINER_MEMORY),
-          NanoCpus: CONTAINER_CONFIG.CONTAINER_CPU * 1e9,
-          NetworkMode: networkName,
-          Binds: [
-            `${volumeName}:/home/agent`
-          ],
-          AutoRemove: false,
-          RestartPolicy: {
-            Name: 'unless-stopped'
-          }
-        },
+        HostConfig: hostConfig,
         Labels: {
           'cloudcli.user_id': String(userId),
           'cloudcli.agent_type': agentType,
-          'cloudcli.managed': 'true'
+          'cloudcli.managed': 'true',
+          'cloudcli.runtime': this.runtime.getName()
         }
       });
 
@@ -218,13 +246,13 @@ class ContainerManager {
   }
 
   /**
-   * Create an isolated Docker network for a user
+   * Create an isolated network for a user
    * @private
    * @param {string} networkName
    */
   async createUserNetwork(networkName) {
     try {
-      const networks = await this.docker.listNetworks({
+      const networks = await this.runtime.listNetworks({
         filters: { name: [networkName] }
       });
 
@@ -233,7 +261,7 @@ class ContainerManager {
         return;
       }
 
-      await this.docker.createNetwork({
+      await this.runtime.createNetwork({
         Name: networkName,
         Driver: 'bridge',
         Internal: false,
@@ -250,13 +278,13 @@ class ContainerManager {
   }
 
   /**
-   * Create a persistent Docker volume for a user
+   * Create a persistent volume for a user
    * @private
    * @param {string} volumeName
    */
   async createUserVolume(volumeName) {
     try {
-      const volumes = await this.docker.listVolumes({
+      const volumes = await this.runtime.listVolumes({
         filters: { name: [volumeName] }
       });
 
@@ -265,7 +293,7 @@ class ContainerManager {
         return;
       }
 
-      await this.docker.createVolume({
+      await this.runtime.createVolume({
         Name: volumeName,
         Labels: {
           'cloudcli.managed': 'true'
@@ -322,7 +350,7 @@ class ContainerManager {
         throw new Error(`No container found for user ${userId}`);
       }
 
-      const container = this.docker.getContainer(containerInfo.container_id);
+      const container = this.runtime.getContainer(containerInfo.container_id);
 
       // Check current status
       const inspect = await container.inspect();
@@ -401,7 +429,7 @@ class ContainerManager {
         return;
       }
 
-      const container = this.docker.getContainer(containerInfo.container_id);
+      const container = this.runtime.getContainer(containerInfo.container_id);
       const inspect = await container.inspect();
 
       if (!inspect.State.Running) {
@@ -447,15 +475,19 @@ class ContainerManager {
    * @returns {Promise<Object>} Container info with port
    */
   async ensureRunning(userId) {
+    console.log(`[ContainerManager.ensureRunning] Called for userId=${userId}`);
     const containerInfo = containerDb.getContainerByUserId(userId);
+    console.log(`[ContainerManager.ensureRunning] containerInfo:`, containerInfo);
 
     if (!containerInfo) {
       // Create container if it doesn't exist
+      console.log(`[ContainerManager.ensureRunning] No container found, creating new container`);
       await this.createUserContainer(userId);
       return await this.ensureRunning(userId);
     }
 
     if (containerInfo.status === 'running') {
+      console.log(`[ContainerManager.ensureRunning] Container already running on port ${containerInfo.internal_port}`);
       return {
         internalPort: containerInfo.internal_port,
         containerId: containerInfo.container_id
@@ -463,6 +495,7 @@ class ContainerManager {
     }
 
     // Start if stopped
+    console.log(`[ContainerManager.ensureRunning] Container status=${containerInfo.status}, starting container`);
     await this.startUserContainer(userId);
     return {
       internalPort: containerInfo.internal_port,
@@ -478,11 +511,14 @@ class ContainerManager {
   async getContainerStatus(userId) {
     const containerInfo = containerDb.getContainerByUserId(userId);
     if (!containerInfo) {
-      return { status: 'none' };
+      return {
+        status: 'none',
+        runtime: this.runtime.getName()
+      };
     }
 
     try {
-      const container = this.docker.getContainer(containerInfo.container_id);
+      const container = this.runtime.getContainer(containerInfo.container_id);
       const inspect = await container.inspect();
 
       return {
@@ -490,12 +526,14 @@ class ContainerManager {
         containerId: containerInfo.container_id,
         port: containerInfo.internal_port,
         created: containerInfo.created_at,
-        uptime: inspect.State.StartedAt
+        uptime: inspect.State.StartedAt,
+        runtime: this.runtime.getName()
       };
     } catch (error) {
       return {
         status: 'error',
-        error: error.message
+        error: error.message,
+        runtime: this.runtime.getName()
       };
     }
   }
@@ -515,7 +553,7 @@ class ContainerManager {
     }
 
     try {
-      const container = this.docker.getContainer(containerInfo.container_id);
+      const container = this.runtime.getContainer(containerInfo.container_id);
       const logs = await container.logs({
         stdout: true,
         stderr: true,
@@ -567,7 +605,7 @@ class ContainerManager {
       await this.stopUserContainer(userId, true);
 
       // Remove container
-      const container = this.docker.getContainer(containerInfo.container_id);
+      const container = this.runtime.getContainer(containerInfo.container_id);
       await container.remove({ force: true });
 
       // Note: We don't remove volumes/networks to preserve user data

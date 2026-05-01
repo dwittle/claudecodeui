@@ -1,10 +1,15 @@
 /**
- * Configuration for Docker container management
+ * Configuration for container management (Docker/Podman)
  * All values can be overridden by environment variables
  */
 
 export const CONTAINER_CONFIG = {
-  // Docker image for worker containers
+  // Container runtime selection
+  // Options: 'auto' (default), 'docker', 'podman'
+  // 'auto' will detect and use the first available runtime
+  RUNTIME: process.env.CONTAINER_RUNTIME || 'auto',
+
+  // Container image for worker containers
   BASE_IMAGE: process.env.CONTAINER_BASE_IMAGE || 'cloudcliai/sandbox:claude-code',
 
   // Naming prefixes
@@ -30,8 +35,14 @@ export const CONTAINER_CONFIG = {
   STOP_ON_LOGOUT: process.env.CONTAINER_STOP_ON_LOGOUT === 'true',
   IDLE_TIMEOUT: 24 * 60 * 60 * 1000, // 24 hours
 
-  // Docker daemon
-  DOCKER_HOST: process.env.DOCKER_HOST || 'unix:///var/run/docker.sock',
+  // Socket path (legacy Docker configuration)
+  // Note: This is now auto-detected by runtime-detector.js
+  // Only set this if you need to override the automatic detection
+  DOCKER_HOST: process.env.DOCKER_HOST || process.env.PODMAN_HOST || null,
+
+  // Podman-specific settings
+  PODMAN_SOCKET_PATH: process.env.PODMAN_SOCKET_PATH || null,
+  ENABLE_PODMAN_SOCKET: process.env.ENABLE_PODMAN_SOCKET !== 'false', // Auto-enable by default
 
   // Retry configuration
   MAX_RETRIES: 3,

@@ -16,16 +16,22 @@ export function createProxyMiddleware() {
     try {
       // User ID should be set by authenticateToken middleware
       const userId = req.user?.id;
+      console.log(`[ProxyMiddleware] Incoming request: ${req.method} ${req.path}, userId=${userId}`);
+
       if (!userId) {
+        console.error('[ProxyMiddleware] No userId found in request');
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
       // Ensure container is running (creates if needed, starts if stopped)
       let containerInfo;
       try {
+        console.log(`[ProxyMiddleware] Calling containerManager.ensureRunning(${userId})`);
         containerInfo = await containerManager.ensureRunning(userId);
+        console.log(`[ProxyMiddleware] Container ensured: ${JSON.stringify(containerInfo)}`);
       } catch (error) {
-        console.error(`[ProxyMiddleware] Failed to ensure container for user ${userId}:`, error.message);
+        console.error(`[ProxyMiddleware] Failed to ensure container for user ${userId}:`, error);
+        console.error(`[ProxyMiddleware] Error stack:`, error.stack);
         return res.status(503).json({
           error: 'Container unavailable',
           message: 'Failed to start your development container. Please try again.',
@@ -45,10 +51,16 @@ export function createProxyMiddleware() {
         ws: true, // Enable WebSocket support
         timeout: 30000, // 30 second timeout
         proxyTimeout: 30000,
+        pathRewrite: (path, req) => {
+          // Preserve the original path
+          console.log(`[ProxyMiddleware] Rewriting path: ${path} -> ${path}`);
+          return path;
+        },
 
         // Handle proxy errors
         onError: (err, req, res) => {
           console.error(`[ProxyMiddleware] Proxy error for user ${userId}:`, err.message);
+          console.error(`[ProxyMiddleware] Failed request: ${req.method} ${req.url}`);
 
           // Check if response already sent
           if (res.headersSent) {

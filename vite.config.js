@@ -29,7 +29,22 @@ export default defineConfig(({ mode }) => {
       host,
       port: parseInt(env.VITE_PORT) || 5173,
       proxy: {
-        '/api': `http://${proxyHost}:${serverPort}`,
+        '/api': {
+          target: `http://${proxyHost}:${serverPort}`,
+          configure: (proxy, options) => {
+            proxy.on('error', (err, req, res) => {
+              console.log('[Vite Proxy] ERROR:', err.message);
+              console.log('[Vite Proxy] Request:', req.method, req.url);
+            });
+            proxy.on('proxyReq', (proxyReq, req, res) => {
+              console.log('[Vite Proxy] Proxying:', req.method, req.url, '->', proxyReq.path);
+              console.log('[Vite Proxy] Target:', `http://${proxyHost}:${serverPort}`);
+            });
+            proxy.on('proxyRes', (proxyRes, req, res) => {
+              console.log('[Vite Proxy] Response:', proxyRes.statusCode, req.url);
+            });
+          }
+        },
         '/ws': {
           target: `ws://${proxyHost}:${serverPort}`,
           ws: true

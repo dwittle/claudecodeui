@@ -95,6 +95,23 @@ Open `http://localhost:3001` — all your existing sessions are discovered autom
 
 Visit the **[documentation →](https://cloudcli.ai/docs)** for full configuration options, PM2, remote server setup and more.
 
+#### Container Deployment (Docker/Podman)
+
+Run agents in isolated containers with full resource isolation. Supports both **Docker** and **Podman** (including rootless mode).
+
+**With Docker:**
+```bash
+docker-compose up -d
+```
+
+**With Podman:**
+```bash
+podman-compose -f podman-compose.yml up -d
+# or for rootless: systemctl --user enable --now podman.socket
+```
+
+See the [Multi-User Architecture](MULTI_USER_ARCHITECTURE.md) and [Podman Support Guide](docs/PODMAN_SUPPORT.md) for details.
+
 #### Docker Sandboxes (Experimental)
 
 Run agents in isolated sandboxes with hypervisor-level isolation. Starts Claude Code by default. Requires the [`sbx` CLI](https://docs.docker.com/ai/sandboxes/get-started/).

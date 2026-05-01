@@ -1,6 +1,8 @@
 # Multi-User Container Architecture
 
-CloudCLI supports a multi-user container architecture that enables team deployments, educational environments, and SaaS offerings. Each user gets their own isolated Docker container with a complete CloudCLI environment.
+CloudCLI supports a multi-user container architecture that enables team deployments, educational environments, and SaaS offerings. Each user gets their own isolated container with a complete CloudCLI environment.
+
+**Container Runtime Support:** CloudCLI works with both **Docker** and **Podman** as container runtimes. See [Podman Support Guide](docs/PODMAN_SUPPORT.md) for details on using Podman.
 
 ## Architecture Overview
 
