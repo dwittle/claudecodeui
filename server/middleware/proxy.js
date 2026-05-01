@@ -48,7 +48,7 @@ export function createProxyMiddleware() {
         const proxy = createHttpProxy({
           target,
           changeOrigin: true,
-          ws: true,
+          ws: false, // WebSocket upgrades handled by setupWebSocketProxy
           timeout: 30000,
           proxyTimeout: 30000,
 
