@@ -306,6 +306,7 @@ if (MULTI_USER_MODE) {
     app.use('/api/files', authenticateToken, proxyMiddleware);
     app.use('/api/sessions', authenticateToken, proxyMiddleware);
     app.use('/api/browse-filesystem', authenticateToken, proxyMiddleware);
+    app.use('/api/providers', authenticateToken, proxyMiddleware);
 
     // Other routes handled by gateway
     app.use('/api/cursor', authenticateToken, cursorRoutes);
@@ -317,7 +318,7 @@ if (MULTI_USER_MODE) {
     app.use('/api/codex', authenticateToken, codexRoutes);
     app.use('/api/gemini', authenticateToken, geminiRoutes);
     app.use('/api/plugins', authenticateToken, pluginsRoutes);
-    app.use('/api/providers', authenticateToken, providerRoutes);
+    // Note: /api/providers is proxied to workers (see above) to read their settings.json
 } else {
     // Single-user mode - all routes handled directly
     app.use('/api/projects', authenticateToken, projectsRoutes);
