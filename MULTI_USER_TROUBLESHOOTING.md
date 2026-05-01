@@ -87,36 +87,19 @@ Added comprehensive logging throughout:
 - Added password visibility toggle button
 - Show/hide password functionality with eye icon
 
-## Remaining Issue ⚠️
+## Resolved Issues ✅
 
-### Proxy Path Forwarding Problem
+### Proxy Path Forwarding Problem (FIXED)
 
-**Symptom**: API requests return empty responses or 401 errors
-```
-Browser Error: GET http://localhost:5173/api/projects 401 (Unauthorized)
-               SyntaxError: Failed to execute 'json' on 'Response': Unexpected end of JSON input
-```
+**Root Causes Found and Fixed in `server/middleware/proxy.js`**:
 
-**Observations**:
-1. Container IS running: `podman ps` shows container up with proper port mapping
-2. Container server IS responding: `curl localhost:4001/api/health` returns 200 OK
-3. Gateway proxy DOES create connections: Logs show "Proxying request from user 1 to http://localhost:4001/"
-4. Vite proxy DOES forward requests: Shows "Response: 200 /api/projects" sometimes
-5. BUT requests are inconsistent - sometimes 200, sometimes 401, sometimes empty
+1. **Duplicate `onError` handler** — The proxy config object had two `onError` keys. JavaScript silently dropped the first (HTTP error handler), leaving only the WebSocket handler that called `socket.end()` on an HTTP response, causing ECONNRESET on every proxied API call.
 
-**Server Logs Show**:
-```
-[ProxyMiddleware] Proxying request from user 1 to http://localhost:4001/
-[HPM] Error occurred while proxying request localhost:5173/api/projects to http://localhost:4001/ [ECONNRESET]
-```
+2. **Express path stripping** — When `app.use('/api/projects', proxyMiddleware)` mounts middleware, Express strips the mount prefix from `req.url`. The proxy was forwarding to `http://localhost:4001/` (root) instead of `http://localhost:4001/api/projects/...`. Fixed by using `req.originalUrl` in `pathRewrite`, which contains the full original path before Express strips it.
 
-**Suspected Cause**:
-The proxy middleware in `server/middleware/proxy.js` creates a fresh proxy for each request, which may be causing path rewriting issues or race conditions. The path should be preserved but something in the proxy chain is not working correctly.
+3. **Fresh proxy per request** — A new `createProxyMiddleware` instance was created for every request. Now proxy instances are cached per user (keyed on `userId + port`) and reused, which is how `http-proxy-middleware` is designed to be used.
 
-**Files Involved**:
-- `server/middleware/proxy.js` (lines 14-110)
-- `server/index.js` (lines 299-308, proxy routing setup)
-- Container logs show server IS working inside container
+**Fix**: See `server/middleware/proxy.js` — `createProxyMiddleware()` now caches per-user proxy instances and uses `pathRewrite: (_path, req) => req.originalUrl`.
 
 ## Current Configuration
 
@@ -216,15 +199,12 @@ The ECONNRESET errors suggest possible timing issues:
 - Add connection retry logic
 - Add health check before proxying
 
-## Temporary Workaround
+## Enabling Multi-User Mode
 
-**For immediate use**: Disable multi-user mode
+The proxy issues have been resolved. Set in `.env`:
 ```bash
-# In .env
-MULTI_USER_MODE=false
+MULTI_USER_MODE=true
 ```
-
-This bypasses the container proxy and routes requests directly to the local server, allowing the app to work in single-user mode.
 
 ## Files Changed
 

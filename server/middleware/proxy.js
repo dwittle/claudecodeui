@@ -1,37 +1,34 @@
 import { createProxyMiddleware as createHttpProxy } from 'http-proxy-middleware';
 import { containerManager } from '../container/manager.js';
 
+// Cache proxy instances per user. Keyed by userId, value: { port, proxy }.
+// Invalidated when the container port changes (e.g. after a recreate).
+const userProxyCache = new Map();
+
 /**
- * Create proxy middleware for routing requests to user containers
- * This middleware:
- * 1. Extracts user ID from authenticated request (req.user.id)
- * 2. Ensures user's container is running
- * 3. Proxies the request to the container's internal port
- * 4. Handles errors and container unavailability
+ * Create proxy middleware for routing requests to user containers.
  *
- * @returns {Function} Express middleware
+ * Express strips the mount-point prefix from req.url before handing off to
+ * middleware, so a request for /api/projects/list arrives here with
+ * req.url === '/list'. We use req.originalUrl in pathRewrite to restore the
+ * full path so the container receives /api/projects/list as expected.
  */
 export function createProxyMiddleware() {
   return async (req, res, next) => {
     try {
-      // User ID should be set by authenticateToken middleware
       const userId = req.user?.id;
-      console.log(`[ProxyMiddleware] Incoming request: ${req.method} ${req.path}, userId=${userId}`);
-
       if (!userId) {
         console.error('[ProxyMiddleware] No userId found in request');
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      // Ensure container is running (creates if needed, starts if stopped)
+      console.log(`[ProxyMiddleware] Incoming: ${req.method} ${req.originalUrl}, userId=${userId}`);
+
       let containerInfo;
       try {
-        console.log(`[ProxyMiddleware] Calling containerManager.ensureRunning(${userId})`);
         containerInfo = await containerManager.ensureRunning(userId);
-        console.log(`[ProxyMiddleware] Container ensured: ${JSON.stringify(containerInfo)}`);
       } catch (error) {
-        console.error(`[ProxyMiddleware] Failed to ensure container for user ${userId}:`, error);
-        console.error(`[ProxyMiddleware] Error stack:`, error.stack);
+        console.error(`[ProxyMiddleware] Failed to ensure container for user ${userId}:`, error.message);
         return res.status(503).json({
           error: 'Container unavailable',
           message: 'Failed to start your development container. Please try again.',
@@ -39,79 +36,59 @@ export function createProxyMiddleware() {
         });
       }
 
-      // Build target URL
-      const target = `http://localhost:${containerInfo.internalPort}`;
+      const port = containerInfo.internalPort;
+      const target = `http://localhost:${port}`;
 
-      console.log(`[ProxyMiddleware] Proxying request from user ${userId} to ${target}${req.path}`);
+      console.log(`[ProxyMiddleware] Routing user ${userId} → ${target}${req.originalUrl}`);
 
-      // Create proxy for this request
-      const proxy = createHttpProxy({
-        target,
-        changeOrigin: true,
-        ws: true, // Enable WebSocket support
-        timeout: 30000, // 30 second timeout
-        proxyTimeout: 30000,
-        pathRewrite: (path, req) => {
-          // Preserve the original path
-          console.log(`[ProxyMiddleware] Rewriting path: ${path} -> ${path}`);
-          return path;
-        },
+      // Reuse a cached proxy for this user as long as the port hasn't changed.
+      let cached = userProxyCache.get(userId);
+      if (!cached || cached.port !== port) {
+        const proxy = createHttpProxy({
+          target,
+          changeOrigin: true,
+          ws: true,
+          timeout: 30000,
+          proxyTimeout: 30000,
 
-        // Handle proxy errors
-        onError: (err, req, res) => {
-          console.error(`[ProxyMiddleware] Proxy error for user ${userId}:`, err.message);
-          console.error(`[ProxyMiddleware] Failed request: ${req.method} ${req.url}`);
+          // Restore the full path that Express stripped when matching the mount point.
+          pathRewrite: (_path, req) => req.originalUrl,
 
-          // Check if response already sent
-          if (res.headersSent) {
-            return;
-          }
+          onError: (err, req, res) => {
+            console.error(`[ProxyMiddleware] Error for user ${userId}: ${err.message}`);
+            if (res.headersSent) return;
+            res.status(502).json({
+              error: 'Container communication error',
+              message: 'Failed to communicate with your development container.',
+              details: err.message
+            });
+          },
 
-          res.status(502).json({
-            error: 'Container communication error',
-            message: 'Failed to communicate with your development container.',
-            details: err.message
-          });
-        },
+          onProxyReq: (proxyReq, req) => {
+            proxyReq.setHeader('X-CloudCLI-User-ID', userId);
+            if (req.headers.host) {
+              proxyReq.setHeader('X-Forwarded-Host', req.headers.host);
+            }
+          },
 
-        // Log successful proxy
-        onProxyReq: (proxyReq, req, res) => {
-          // Forward user information in headers (for container logging)
-          proxyReq.setHeader('X-CloudCLI-User-ID', userId);
+          onProxyRes: (proxyRes) => {
+            proxyRes.headers['X-Proxied-By'] = 'CloudCLI-Gateway';
+          },
 
-          // Preserve original host
-          if (req.headers.host) {
-            proxyReq.setHeader('X-Forwarded-Host', req.headers.host);
-          }
-        },
+          onProxyReqWs: (proxyReq) => {
+            proxyReq.setHeader('X-CloudCLI-User-ID', userId);
+          },
+        });
 
-        // Log proxy response
-        onProxyRes: (proxyRes, req, res) => {
-          // Optional: Add header to indicate proxied response
-          proxyRes.headers['X-Proxied-By'] = 'CloudCLI-Gateway';
-        },
+        cached = { port, proxy };
+        userProxyCache.set(userId, cached);
+        console.log(`[ProxyMiddleware] Created new proxy for user ${userId} → port ${port}`);
+      }
 
-        // WebSocket upgrade handler
-        onProxyReqWs: (proxyReq, req, socket, options, head) => {
-          console.log(`[ProxyMiddleware] WebSocket upgrade for user ${userId}`);
-
-          // Forward user information
-          proxyReq.setHeader('X-CloudCLI-User-ID', userId);
-        },
-
-        // WebSocket error handler
-        onError: (err, req, socket) => {
-          console.error(`[ProxyMiddleware] WebSocket error for user ${userId}:`, err.message);
-          socket.end();
-        }
-      });
-
-      // Execute proxy
-      proxy(req, res, next);
+      cached.proxy(req, res, next);
 
     } catch (error) {
       console.error('[ProxyMiddleware] Unexpected error:', error);
-
       if (!res.headersSent) {
         res.status(500).json({
           error: 'Internal server error',
@@ -123,28 +100,24 @@ export function createProxyMiddleware() {
 }
 
 /**
- * Create WebSocket proxy handler
- * Called when WebSocket upgrade is requested
- *
- * @param {Object} server - HTTP server instance
- * @param {Function} authenticateWs - Function to authenticate WebSocket connections
+ * Invalidate the cached proxy for a user (e.g. after container recreation).
+ */
+export function invalidateUserProxy(userId) {
+  userProxyCache.delete(userId);
+}
+
+/**
+ * WebSocket proxy handler — called on HTTP upgrade events.
  */
 export function setupWebSocketProxy(server, authenticateWs) {
   server.on('upgrade', async (req, socket, head) => {
     try {
-      // Parse URL to check if this is a proxied route
       const url = new URL(req.url, `http://${req.headers.host}`);
-
-      // Only handle specific WebSocket routes that should be proxied
       const proxyRoutes = ['/api/terminal', '/api/sessions', '/ws'];
-      const shouldProxy = proxyRoutes.some(route => url.pathname.startsWith(route));
-
-      if (!shouldProxy) {
-        // Let other handlers deal with it
+      if (!proxyRoutes.some(route => url.pathname.startsWith(route))) {
         return;
       }
 
-      // Authenticate WebSocket connection
       const user = await authenticateWs(req);
       if (!user) {
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
@@ -154,7 +127,6 @@ export function setupWebSocketProxy(server, authenticateWs) {
 
       const userId = user.userId;
 
-      // Ensure container is running
       let containerInfo;
       try {
         containerInfo = await containerManager.ensureRunning(userId);
@@ -165,23 +137,20 @@ export function setupWebSocketProxy(server, authenticateWs) {
         return;
       }
 
-      // Create WebSocket proxy
       const target = `ws://localhost:${containerInfo.internalPort}`;
-      console.log(`[WebSocketProxy] Proxying WebSocket for user ${userId} to ${target}`);
+      console.log(`[WebSocketProxy] Proxying WebSocket for user ${userId} → ${target}`);
 
       const wsProxy = createHttpProxy({
         target,
         ws: true,
         changeOrigin: true,
-
         onError: (err) => {
           console.error(`[WebSocketProxy] Error for user ${userId}:`, err.message);
           socket.destroy();
         },
-
-        onProxyReqWs: (proxyReq, req, socket) => {
+        onProxyReqWs: (proxyReq) => {
           proxyReq.setHeader('X-CloudCLI-User-ID', userId);
-        }
+        },
       });
 
       wsProxy.upgrade(req, socket, head);
@@ -194,8 +163,7 @@ export function setupWebSocketProxy(server, authenticateWs) {
 }
 
 /**
- * Health check endpoint (bypasses proxy)
- * Returns gateway health status
+ * Health check endpoint (bypasses proxy).
  */
 export function healthCheckMiddleware(req, res, next) {
   if (req.path === '/health' || req.path === '/api/health') {
