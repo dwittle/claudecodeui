@@ -23,7 +23,13 @@ const buildWebSocketUrl = (token: string | null) => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   if (IS_PLATFORM) return `${protocol}//${window.location.host}/ws`; // Platform mode: Use same domain as the page (goes through proxy)
   if (!token) return null;
-  return `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`; // OSS mode: Use same host:port that served the page
+
+  // In development mode (Vite on 5173), connect directly to backend port 3333
+  // to avoid double-proxying issues with WebSocket frames
+  const isDev = window.location.port === '5173';
+  const host = isDev ? window.location.hostname + ':3333' : window.location.host;
+
+  return `${protocol}//${host}/ws?token=${encodeURIComponent(token)}`; // OSS mode: Use same host:port that served the page
 };
 
 const useWebSocketProviderState = (): WebSocketContextType => {
@@ -39,6 +45,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
   // React StrictMode's mount→cleanup→mount cycle leaves unmountedRef permanently
   // true and connect() short-circuits forever.
   useEffect(() => {
+    unmountedRef.current = false; // Reset on mount (for React StrictMode remounts)
     return () => {
       unmountedRef.current = true;
     };
@@ -66,7 +73,6 @@ const useWebSocketProviderState = (): WebSocketContextType => {
 
       if (!wsUrl) return console.warn('No authentication token found for WebSocket connection');
 
-      console.log('[WS] connecting', wsUrl);
       const websocket = new WebSocket(wsUrl);
 
       websocket.onopen = () => {

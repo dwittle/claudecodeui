@@ -1,4 +1,5 @@
 import { createProxyMiddleware as createHttpProxy } from 'http-proxy-middleware';
+import httpProxy from 'http-proxy';
 import { containerManager } from '../container/manager.js';
 
 // Cache proxy instances per user. Keyed by userId, value: { port, proxy }.
@@ -149,23 +150,26 @@ export function setupWebSocketProxy(server, authenticateWs) {
         return;
       }
 
-      const target = `ws://localhost:${containerInfo.internalPort}`;
-      console.log(`[WebSocketProxy] Proxying WebSocket for user ${userId} → ${target}`);
+      const targetHost = 'localhost';
+      const targetPort = containerInfo.internalPort;
+      console.log(`[WebSocketProxy] Proxying WebSocket for user ${userId} → ws://${targetHost}:${targetPort}`);
 
-      const wsProxy = createHttpProxy({
-        target,
+      // Use raw http-proxy for WebSocket upgrades (not http-proxy-middleware)
+      const proxy = httpProxy.createProxyServer({
+        target: { host: targetHost, port: targetPort },
         ws: true,
-        changeOrigin: true,
-        onError: (err) => {
-          console.error(`[WebSocketProxy] Error for user ${userId}:`, err.message);
-          socket.destroy();
-        },
-        onProxyReqWs: (proxyReq) => {
-          proxyReq.setHeader('X-CloudCLI-User-ID', userId);
-        },
       });
 
-      wsProxy.upgrade(req, socket, head);
+      proxy.on('error', (err) => {
+        console.error(`[WebSocketProxy] Error for user ${userId}:`, err.message);
+        socket.destroy();
+      });
+
+      proxy.on('proxyReqWs', (proxyReq) => {
+        proxyReq.setHeader('X-CloudCLI-User-ID', userId);
+      });
+
+      proxy.ws(req, socket, head);
 
     } catch (error) {
       console.error('[WebSocketProxy] Unexpected error:', error);
