@@ -10,7 +10,7 @@ USER root
 # Build toolchain for native modules (better-sqlite3, node-pty, bcrypt)
 # plus a few utilities the agent will commonly need.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      build-essential python3 python3-setuptools \
+      build-essential python3 python3-setuptools python3-venv \
       curl git sudo jq ripgrep sqlite3 zip unzip tree vim-tiny \
     && rm -rf /var/lib/apt/lists/*
 
