@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# AKiPS CLI wrapper - allows calling from any directory
+
+# Get the directory where this script lives
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Run the CLI with the venv python using unbuffered mode (-u)
+# This ensures output is immediately flushed and captured
+exec "$SCRIPT_DIR/.venv/bin/python3" -u "$SCRIPT_DIR/akips_cli.py" "$@"

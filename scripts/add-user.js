@@ -136,13 +136,18 @@ function copyTemplateToVolume(volumePath) {
       log.success('Copied template files using cp');
     }
 
-    // Set ownership to container user (UID 100999 by default for rootless podman)
-    // This matches the 'agent' user in the container
+    // Fix ownership for rootless Podman
+    // The container runs as UID 1000 (agent user), so we need to chown the volume
+    // to UID 1000 within the rootless user namespace
     try {
-      execSync(`chown -R 100999:100999 "${volumePath}"`, { encoding: 'utf-8' });
-      log.success('Set ownership to container user (UID 100999)');
+      execSync(`podman unshare chown -R 1000:1000 "${volumePath}"`, {
+        encoding: 'utf-8',
+        stdio: 'inherit'
+      });
+      log.success('Fixed volume ownership for container user (UID 1000)');
     } catch (error) {
-      log.warn('Could not set ownership (you may need sudo). Files will use current ownership.');
+      log.warn(`Failed to fix ownership: ${error.message}`);
+      log.warn('Container may have permission issues on first start');
     }
   } catch (error) {
     throw new Error(`Failed to copy template: ${error.message}`);

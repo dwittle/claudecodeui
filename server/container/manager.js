@@ -146,6 +146,8 @@ class ContainerManager {
         `AGENT_TYPE=${agentType}`,
         `JWT_SECRET=${jwtSecret}`,
         `WORKSPACES_ROOT=/home/agent/workspace`,
+        // Point to the Claude binary bundled with the SDK
+        `CLAUDE_CLI_PATH=/opt/cloudcli/node_modules/@anthropic-ai/claude-agent-sdk-linux-x64/claude`,
       ];
 
       // Add credential environment variables
@@ -167,7 +169,7 @@ class ContainerManager {
       const hostConfig = {
         NetworkMode: networkName,
         Binds: [
-          `${volumeName}:/home/agent`,
+          `${volumeName}:/home/agent:Z`,
         ],
         PortBindings: {
           [`${port}/tcp`]: [{ HostPort: String(port) }]

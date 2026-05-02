@@ -1,0 +1,2945 @@
+AKIPS Documentation v25.5
+
+1 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Syntax
+Syntax may be presented in this guide across multiple lines due to layout constraints. When
+using AKIPS, you will need to run commands in a single line.
+Parameters (ﬁelds expecting a substituted value) are contained within
+{ } (braces).
+
+E.g. {type} {value}
+Optional parameters are contained within [ ] (square brackets).
+E.g. [index,{description}]
+Optional parameters may be nested.
+E.g. mlist {type} [{parent regex} [{child regex} [{attribute regex}]]]
+For values separated by a | (pipe), choose one option only.
+E.g. [any|all|not group {group name} ...]
+Multiple parameters will have an ... (ellipsis).
+E.g. not group {group name} ...
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+2 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Time ﬁlters
+AKIPS uses syntax for time ﬁlters in:
+• reports and graphs
+• threshold, alerting and availability rules.
+AKIPS deﬁnes a week as 00:00:00 on Sunday to 23:59:59 on Saturday.
+Syntax
+
+Description
+
+Example
+
+m
+
+minute
+
+7m
+
+h
+
+hour
+
+2h
+
+d
+
+day
+
+5d
+
+w
+
+week
+
+6w
+
+M
+
+month
+
+3M
+
+y / yyyy
+
+year
+
+1y / 2021
+
+yyyy q[1-4]
+
+year and quarter
+
+2021 q2
+
+yyyy-MM
+
+year and month
+
+2021-04
+
+yyyy-MM-dd
+
+year, month and day
+
+2021-04-17
+
+yyyy-MM-dd hh:mm
+
+year, month, day and time
+
+2021-04-17 15:30
+
+Use the following syntax:
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+3 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+{positive integer}{m h d w M y}
+{ddd} {hh:mm} to {hh:mm}
+{ddd} {hh:mm} to {ddd} {hh:mm}
+{ddd} to {ddd} {hh:mm} to {hh:mm}
+not {ddd} {hh:mm} to {hh:mm}
+not {ddd} {hh:mm} to {ddd} {hh:mm}
+not {ddd} to {ddd} {hh:mm} to {hh:mm}
+thishour
+lasthour
+today
+yesterday
+thisweek
+lastweek
+thismonth
+lastmonth
+thisyear
+lastyear
+last {duration}
+from yyyy to yyyy
+from yyyy-mm to yyyy-mm
+from yyyy-mm-dd to yyyy-mm-dd
+from yyyy-mm-dd hh:mm to yyyy-mm-dd hh:mm
+from yyyy for {duration}
+from yyyy-mm for {duration}
+from yyyy-mm-dd for {duration}
+from yyyy-mm-dd hh:mm for {duration}
+from {timestamp} to {timestamp}
+from {point in time} to {point in time}
+from {point in time} to {point in time} [+- duration]
+from {point in time} [+- duration] to
+{point in time} [+- duration]
+now
+startoflastminute
+endoflastminute
+startofthisminute
+endofthisminute
+startoflasthour
+endoflasthour
+startofthishour
+endofthishour
+startofyesterday
+endofyesterday
+startoftoday
+endoftoday
+startoflastweek
+endoflastweek
+startofthisweek
+endofthisweek
+startoflastmonth
+endoflastmonth
+startofthismonth
+endofthismonth
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+4 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+startoflastyear
+endoflastyear
+startofthisyear
+endofthisyear
+
+tf pairs and tf span
+The tf pairs command will display a series of start, end pairs which indicate valid time ranges
+within the time ﬁlter.
+The human-readable form of this is shown in the tf dump command.
+tf dump "lastweek; mon to fri 8:00 to 17:00"
+tf pairs "lastweek; mon to fri 8:00 to 17:00"
+
+The tf span command displays the total span of the time ﬁlter.
+tf dump "lastweek; mon to fri 8:00 to 17:00"
+tf span "lastweek; mon to fri 8:00 to 17:00"
+
+Examples
+The past 30 minutes:
+tf dump last30m
+span 2021-03-06 09:20:50 to 2021-03-06 09:50:50
+
+The past 24 hours:
+tf dump last24h
+span 2021-03-05 10:05:56 to 2021-03-06 10:05:56
+
+The previous day (until midnight this morning):
+tf dump last1d
+span 2021-03-06 00:00:00 to 2021-03-06 23:59:59
+
+The previous seven days (until midnight this morning):
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+5 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+tf dump last7d
+span 2021-02-28 00:00:00 to 2021-03-06 23:59:59
+
+During business hours for the past week:
+tf dump "lastweek; mon to fri 8:00 to 17:00"
+span 2021-02-24 00:00:00 to 2021-03-02 23:59:59
+include 2021-02-25 08:00:00 to 2021-02-25 17:00:00
+include 2021-02-26 08:00:00 to 2021-02-26 17:00:00
+include 2021-02-27 08:00:00 to 2021-02-27 17:00:00
+include 2021-02-28 08:00:00 to 2021-02-28 17:00:00
+include 2021-03-01 08:00:00 to 2021-03-01 17:00:00
+
+During trading hours (with Thursday-evening trading) for the past week:
+tf dump "lastweek; mon to fri 8:00 to 17:00; thu 8:00 to 21:00"
+span 2021-02-24 00:00:00 to 2021-03-02 23:59:59
+include 2021-02-25 08:00:00 to 2021-02-25 17:00:00
+include 2021-02-26 08:00:00 to 2021-02-26 17:00:00
+include 2021-02-27 08:00:00 to 2021-02-27 17:00:00
+include 2021-02-28 08:00:00 to 2021-02-28 21:00:00
+include 2021-03-01 08:00:00 to 2021-03-01 17:00:00
+
+Outside trading hours (with Saturday-morning trading) for the past week:
+tf dump "lastweek; not mon to fri 8:00 to 17:00; not sat 8:00 to 12:00"
+span 2021-02-24 00:00:00 to 2021-03-02 23:59:59
+include 2021-02-24 00:00:00 to 2021-02-25 08:00:00
+include 2021-02-25 17:00:00 to 2021-02-26 08:00:00
+include 2021-02-26 17:00:00 to 2021-02-27 08:00:00
+include 2021-02-27 17:00:00 to 2021-02-28 08:00:00
+include 2021-02-28 17:00:00 to 2021-03-01 08:00:00
+include 2021-03-01 17:00:00 to 2021-03-02 08:00:00
+include 2021-03-02 12:00:00 to 2021-03-02 23:59:59
+
+During business hours in the ﬁrst quarter of 2021:
+tf dump "2021 q1; mon to fri 8:00 to 17:00"
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+6 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+span 2021-01-01 00:00:00 to 2021-03-31 23:59:59
+include 2021-01-01 08:00:00 to 2021-01-01 17:00:00
+include 2021-01-02 08:00:00 to 2021-01-02 17:00:00
+include 2021-01-03 08:00:00 to 2021-01-03 17:00:00
+...
+include 2021-03-28 08:00:00 to 2021-03-28 17:00:00
+include 2021-03-29 08:00:00 to 2021-03-29 17:00:00
+
+The past 30 minutes:
+tf dump "from now - 1h to now - 30m"
+span 2021-03-06 09:30:58 to 2021-03-06 10:00:58
+
+Today until now:
+tf dump "from startoftoday to now"
+span 2021-03-06 00:00:00 to 2021-03-06 10:33:13
+
+Business hours on 1 February 2021:
+tf dump "2021-02-01 8:00 to 17:00"
+span 2021-02-01 08:00:00 to 2021-02-01 17:00:00
+
+After business hours on 1 February 2021:
+tf dump "from 2021-02-01 18:00 to 2021-02-02 06:00"
+span 2021-02-01 18:00:00 to 2021-02-02 06:00:00
+
+The ﬁrst two months of 2021:
+tf dump "from 2021 for 2M"
+span 2021-01-01 00:00:00 to 2021-03-01 00:00:00
+
+Yesterday from midday for three hours:
+tf dump "from startofyesterday + 12h to startofyesterday + 15h"
+span 2021-03-05 12:00:00 to 2021-03-05 15:00:00
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+7 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+tf check
+The tf check command will display either 1 (true) or 0 (false) depending on whether the given
+point in time (Unix epoch time) is within the time ﬁlter.
+Use the following syntax:
+tf check {point in time} "{time filter}"
+
+Examples
+tf check 1594771234 "from 2020-07-05 to 2020-07-11"
+0
+tf check 1594771234 "from 2020-07-12 to 2020-07-18"
+1
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+8 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+IP address ﬁlters
+You can use IP address ﬁlters throughout AKIPS. Use the following syntax:
+{address}/{mask}
+{address}.*
+{address}[{range}]
+{address}[{range}]/{mask}
+{address}[{range}].*
+
+Examples
+A single IPv4 address:
+10.1.1.50
+10.1.1.50
+
+All addresses in a single logical network (i.e. with a speciﬁed 24-bit preﬁx):
+10.0.0.0/24
+10.0.0.*
+
+10.0.0.0
+10.0.0.1
+...
+10.0.0.254
+10.0.0.255
+
+A host ID in a range of 256 logical networks (within a speciﬁed range of 256 concurrent 24bit blocks):
+10.0.0-255.1
+10.0.*.1
+
+10.0.0.1
+10.0.1.1
+10.0.2.1
+...
+10.0.255.1
+
+A single IPv6 address:
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+9 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+fd00:10:1:1::1
+fd00:10:1:1::1
+
+Two hundred and ﬁfty-six IPv6 addresses in a single logical network:
+fd00:10:1:1::0-ff
+fd00:10:1:1::0
+fd00:10:1:1::1
+...
+fd00:10:1:1::fe
+fd00:10:1:1::ff
+
+A host ID in a range of 50 logical networks:
+fd00:10:1:1-50:1
+fd00:10:1:1::1
+fd00:10:1:2::1
+...
+fd00:10:1:50::1
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+10 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Entity commands
+add
+Use the add command to create a new entity. If the entity already exists, AKIPS will update
+it.
+You cannot change an entity's type once created.
+Use the following syntax:
+add {type} {parent name}
+add {type} {parent name} {child name} = [{index,[description]}]
+add {type} {parent name} {child name} {attribute name} [= {value}]
+
+Examples
+Add a router with an interface:
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+11 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+add device Router1
+add system Router1 sys = 0
+add text Router1 sys SNMPv2-MIB.sysName = "Router1.akips.com"
+add text Router1 sys SNMPv2-MIB.sysLocation = "Test Rack"
+add text Router1 sys SNMPv2-MIB.sysDesc = "Cisco IOS 7200 Version 12.4(9) T
+RELEASE (fc1)"
+add text Router1 sys SNMPv2-MIB.sysContact = "AKIPS developers"
+add uptime Router1 sys SNMPv2-MIB.sysUpTime = 1432703430
+add text Router1 sys ip4addr = 10.1.8.250
+add text Router1 sys ip6addr = fd00:10:1:8::250
+add system Router1 ping4 = "4,10.1.8.4"
+add rtt Router1 ping4 PING.icmpRtt
+add counter Router1 ping4 PING.icmpDup
+add counter Router1 ping4 PING.icmpLost
+add enum Router1 ping4 PING.icmpState = 2,up
+add system Router1 ping6 = "6,fd00:10:1:8::250"
+add rtt Router1 ping6 PING.icmpRtt
+add counter Router1 ping6 PING.icmpDup
+add counter Router1 ping6 PING.icmpLost
+add enum Router1 ping6 PING.icmpState
+add interface Router1 Fa0/0 = "1,Link to remote site"
+add integer Router1 Fa0/0 IF-MIB.ifSpeed = 1000000000
+add text Router1 Fa0/0 IF-MIB.ifAlias = "Link to remote site"
+add counter Router1 Fa0/0 IF-MIB.ifHCInOctets = 1
+add counter Router1 Fa0/0 IF-MIB.ifHCOutOctets = 1
+add enum Router1 Fa0/0 IF-MIB.ifAdminStatus = 1,up
+add enum Router1 Fa0/0 IF-MIB.ifOperStatus = 1,up
+add counter Router1 Fa0/0 IF-MIB.ifHCInBroadcastPkts = 1
+add counter Router1 Fa0/0 IF-MIB.ifHCOutBroadcast Pkts = 1
+add counter Router1 Fa0/0 IF-MIB.ifHCInMulticastPkts = 1
+add counter Router1 Fa0/0 IF-MIB.ifHCOutMulticast Pkts = 1
+
+Add some custom entries for asset information:
+add child Router1 asset
+add text Router1 asset serial_number = "123456789"
+add text Router1 asset purchase_date = "2017/05/02"
+add integer Router1 asset purchase_cost = 12013
+
+get
+Use the get command to return the value assigned to a child or attribute.
+Use the following syntax:
+get {parent name} {child name} [{attribute name}]
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+12 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Examples
+Get the value for an interface:
+get swt250 Fa0/1
+10001,Link to swt2512
+
+Get the value for an attribute:
+get swt250 sys SNMPv2-MIB.sysLocation
+Test room
+
+The get command for an attribute with a type of uptime returns two values separated by a
+comma:
+1. when the value was reset to zero (epoch timestamp)
+2. when the attribute value was last updated (epoch timestamp).
+Example
+get swt250 sys SNMPv2-MIB.sysUpTime
+1427283250,1433815768
+
+The get command for an attribute with a type of enum returns ﬁve values separated by
+commas:
+1. list number (from MIB)
+2. text value (from MIB)
+3. time created (epoch timestamp)
+4. time modiﬁed (epoch timestamp)
+5. child description.
+Example
+get swt250 Fa0/1 IF-MIB.ifOperStatus
+1,up,1431579447,1431579447,link to swt251
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+13 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+delete
+Use the delete command to remove a single entity, including all of its childs and attributes.
+Use the following syntax:
+delete {type} {parent name} [[{child name}] {attribute name}]
+
+Examples
+Delete a device:
+delete device CoreRouter12
+
+Delete a child:
+delete interface CoreRouter1 Fa0/03
+
+Delete an attribute:
+delete integer CoreRouter1 Fa0/0 IF-MIB.ifSpeed
+
+mget
+Use the mget command to retrieve large amounts of conﬁguration information.
+Use the following syntax:
+mget {type}
+
+Examples
+mget device
+mget interface
+
+You can also add regex.
+Use the following syntax:
+mget {type} [{parent regex} [{child regex} [{attribute regex}]]]
+[value {text|/regex/|integer|ipaddr}]
+[profile {profile name}] [any|all|not group {group name} ...
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+14 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+The format of the return values depends on which entity (parent, child or attribute) you
+request.
+If you request a parent then the type must be a parent or a wildcard, e.g.
+mget * /^nyc-.*-rtr/
+mget device *
+mget user *
+
+If you request a child then the type must be a child or a wildcard, e.g.
+mget * swt250 /^Fa/
+mget system swt250 *
+mget interface * *
+mget interface * /^Fa0/1/
+
+If you request an attribute then the type must be an attribute or a wildcard, e.g.
+mget * swt250 * *
+mget counter swt250 Fa0/1 /IF-MIB/
+
+Examples
+Retrieve the entire conﬁguration for a single device:
+mget * swt250 * *
+
+Retrieve the sysName for each device:
+mget text * * SNMPv2-MIB.sysName
+Atlanta-ro sys SNMPv2-MIB.sysName = Atlanta-ro.akips.com
+Baltimore-ro sys SNMPv2-MIB.sysName = Baltimore-ro.akips.com
+Boston-ro sys SNMPv2-MIB.sysName = Boston-ro.akips.com
+Charlotte-ro sys SNMPv2-MIB.sysName = Charlotte-ro.akips.com
+cisco-74-1-1 sys SNMPv2-MIB.sysName = cisco-74-1-1
+
+Retrieve all IF-MIB objects for a single interface:
+mget * swt250 Fa0/1 /^IF-MIB.*/
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+15 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+swt250 Fa0/1 IF-MIB.ifAdminStatus = 1,up,1434416774,1434416774
+swt250 Fa0/1 IF-MIB.ifAlias = Link to swt251
+swt250 Fa0/1 IF-MIB.ifDescr = FastEthernet0/1
+swt250 Fa0/1 IF-MIB.ifDuplex = 3,fullDuplex,1434416774,1434416774
+swt250 Fa0/1 IF-MIB.ifHCInBroadcastPkts = 1
+
+Retrieve the IPv4/6 addresses for each device:
+mget text * sys /ip.addr/
+Atlanta-ro sys ip4addr = 10.4.26.1
+Atlanta-ro sys ip6addr = fd00:10:4:26::1
+Baltimore-ro sys ip4addr = 10.4.22.1
+Baltimore-ro sys ip6addr = fd00:10:4:22::1
+Boston-ro sys ip4addr = 10.4.23.1
+Boston-ro sys ip6addr = fd00:10:4:23::1
+...
+
+Case study
+A customer used the mget command to obtain the serial numbers of all devices on his
+network, including their access points:
+mget * * * /serial/
+
+mlist
+Use the mlist command to retrieve a list of matching entities.
+Unlike the mget command, the output does not contain any entity values.
+Use the following syntax:
+mlist {type} [{parent regex} [{child regex} [{attribute regex}]]]
+[value {text|/regex/|integer|ipaddr}]
+[profile {profile name}] [any|all|not group {group name} ...
+
+Examples
+Retrieve a list of all interfaces on a device:
+mlist interface swt250 *
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+16 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+swt250 Fa0/1
+swt250 Fa0/10
+swt250 Fa0/11
+swt250 Fa0/12
+swt250 Fa0/16
+...
+
+Retrieve a list of interface attributes on a device with the type counter:
+mlist counter swt250 * /^IF-MIB./
+swt250 Fa0/1 IF-MIB.ifHCInBroadcastPkts
+swt250 Fa0/1 IF-MIB.ifHCInMulticastPkts
+swt250 Fa0/1 IF-MIB.ifHCInOctets
+swt250 Fa0/1 IF-MIB.ifHCInUcastPkts
+swt250 Fa0/1 IF-MIB.ifHCOutBroadcastPkts
+swt250 Fa0/1 IF-MIB.ifHCOutMulticastPkts
+swt250 Fa0/1 IF-MIB.ifHCOutOctets
+swt250 Fa0/1 IF-MIB.ifHCOutUcastPkts
+swt250 Fa0/1 IF-MIB.ifInDiscards
+swt250 Fa0/1 IF-MIB.ifInErrors
+...
+
+Retrieve a list of enumerated attribute types conﬁgured for a device:
+mlist enum swt250 * *
+swt250 cstack.1 CISCO-STACK-MIB.moduleStandbyStatus
+swt250 cstack.1 CISCO-STACK-MIB.moduleStatus
+swt250 Fa0/1 IF-MIB.ifAdminStatus
+swt250 Fa0/1 IF-MIB.ifDuplex
+swt250 Fa0/1 IF-MIB.ifOperStatus
+swt250 Fa0/1 IF-MIB.ifType
+swt250 Fa0/10 IF-MIB.ifAdminStatus
+...
+
+mtype
+Use the mtype command to retrieve a list of matching entities.
+Unlike the mget command, the output contains entity types, not values. Use the following
+syntax:
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+17 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+mtype {type} [{parent regex} [{child regex} [{attribute regex}]]]
+[value {text|/regex/|integer|ipaddr}]
+[profile {profile name}] [any|all|not group {group name} ...]
+
+Examples
+Retrieve a list of childs for a device:
+mtype * swt250 *
+swt250 cpu.1 processor
+swt250 cstack.1 child
+swt250 Fa0/1 interface
+...
+swt250 Gi0/1 interface
+swt250 Gi0/2 interface
+swt250 ipsla.1 ipsla
+swt250 ipsla.2 ipsla
+swt250 ping6 system
+swt250 psu.1003 system
+swt250 ram.1 memory
+swt250 ram.2 memory
+swt250 sys system
+
+Retrieve a list of attributes for a device:
+mtype * swt250 * *
+swt250 cpu.1 CISCO-PROCESS-MIB.cpmCPUTotal1minRev gauge
+swt250 cstack.1 CISCO-STACK-MIB.moduleModel text
+swt250 cstack.1 CISCO-STACK-MIB.moduleStandbyStatus enum
+swt250 cstack.1 CISCO-STACK-MIB.moduleStatus enum
+swt250 Fa0/1 IF-MIB.ifAdminStatus enum
+swt250 Fa0/1 IF-MIB.ifAlias text
+swt250 Fa0/1 IF-MIB.ifDescr text
+swt250 Fa0/1 IF-MIB.ifDuplex enum
+swt250 Fa0/1 IF-MIB.ifHCInBroadcastPkts counter
+swt250 Fa0/1 IF-MIB.ifHCInMulticastPkts counter
+...
+
+rename
+Use the rename command to rename a parent or child.
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+18 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Use the following syntax:
+rename {type} {existing parent name} {new parent name}
+rename {type} {existing parent name} {existing child name} {new parent name}
+{new child name}
+
+Examples
+Rename a device:
+rename device nyc-rtr usa-nyc-rtr12
+
+Move an interface from one device to another:
+rename interface nyc-rtr1 Se0/1 nyc-rtr2 Se0/1
+
+set
+Use the set command to update an entity's value.
+Use the following syntax:
+set {parent name} {child name} [{attribute name}] = {value}
+
+Examples
+set swt250 sys SNMPv2-MIB.sysLocation = "Test Lab"
+set swt250 sys SNMPv2-MIB.sysContact = "admin@domain.com"
+set swt250 sys ip4addr = 10.1.8.250
+
+mdelete
+Use the mdelete command to remove several entities at once. You can test your selection
+ﬁrst with mget .
+You can use regex to precisely target the entities.
+Use the following syntax:
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+19 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+mdelete {type} {parent regex} [{child regex} [{attribute regex}]]
+
+Examples
+Delete all devices (We do not recommend this!):
+mdelete device *
+
+Delete all devices in a group:
+mdelete device * any group testlab
+
+Delete all IF-MIB attributes:
+mdelete * CoreRouter1 Fa0/0 /IF-MIB/
+
+Delete all ipsla entities for a device:
+mdelete * Corerouter1 /ipsla/
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+20 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Group commands
+add
+Use the add command to create a new group.
+If the group already exists, AKIPS will not update it.
+You cannot change a group's type once created.
+Use the following syntax:
+add {type} group {group name}
+
+Examples
+Add a group:
+add device group core-routers
+
+Add an interface group:
+add interface group uplinks
+
+Add an ipsla group:
+add ipsla group Jitter-tests
+
+Add device and super groups:
+add device group SFO-BuildingA-Fl01
+add device group SFO-BuildingA-Fl02
+add device group SFO-BuildingA-Fl03
+...
+add device group SFO-BuildingB-Fl01
+add device group SFO-BuildingB-Fl02
+add device group SFO-BuildingB-Fl03
+...
+add super group SFO-BuildingA
+add super group SFO-BuildingB
+add super group SFO-Campus
+
+Add interface and super groups:
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+21 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+add interface group SFO-BuildingA-switch-uplinks
+add super group SFO-Campus-switch-uplinks
+
+You can also use the add command to create a new proﬁle group. Use the following syntax:
+add profile group {group name}
+
+Example
+add profile group WAN-Tech-Support
+
+assign
+Use the assign command to assign groups.
+Use the following syntax:
+assign group {group name} = {super group name}
+assign {type} {parent regex} [{child regex} [{attribute regex}]] [value {text|
+integer|/regex/|ipaddr}] [profile {profile name}] [any|all|not group {group name}
+...] = {target group} ...
+
+Examples
+Create vendor groups and assign devices to them based on attribute values:
+add device group Cisco
+add device group Extreme
+assign * * sys SNMPv2-MIB.sysDescr value /Cisco/ = Cisco
+assign * * sys SNMPv2-MIB.sysDescr value /Cabletron/ = Extreme
+assign * * sys SNMPv2-MIB.sysDescr value /Enterasys/ = Extreme
+assign * * sys SNMPv2-MIB.sysDescr value /Extreme/
+= Extreme
+
+Put diﬀerent models into groups using sysDescr:
+add device group Cisco-3600
+add device group Cisco-3700
+add device group Cisco-7200
+assign * * sys SNMPv2-MIB.sysDescr value "/Cisco IOS 3600/" = Cisco-3600
+assign * * sys SNMPv2-MIB.sysDescr value "/Cisco IOS 3700/" = Cisco-3700
+assign * * sys SNMPv2-MIB.sysDescr value "/Cisco IOS 7200/" = Cisco-7200
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+22 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Put diﬀerent models into groups using sysObjectID:
+add device group Cisco-3600
+add device group Cisco-3700
+add device group Cisco-7200
+assign * * sys SNMPv2-MIB.sysObjectID value /CISCO-PRODUCTS-MIB.cisco36/ =
+Cisco-3600
+assign * * sys SNMPv2-MIB.sysObjectID value /CISCO-PRODUCTSMIB.catalyst37xxStack/ = Cisco-3700
+assign * * sys SNMPv2-MIB.sysObjectID value /CISCO-PRODUCTS-MIB.cisco72/ =
+Cisco-7200
+
+Create some device groups:
+add device group routers
+add device group switches
+add device group core-routers
+add device group regional-routers
+add device group core-switches
+add device group regional-switches
+
+Create some interface groups:
+add interface group core-links
+add interface group core-switch-uplinks
+add interface group regional-links
+add interface group servers
+
+Assign interfaces to a group:
+add interface group serial-links
+assign interface * /^Se/ = serial-links27
+
+Assign all links with a speciﬁc ifAlias to a group:
+add interface group Switch-Uplinks
+assign interface * * IF-MIB.ifAlias value /uplink/ = Switch-Uplinks
+
+Create a group hierarchy:
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+23 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+add device group central-office-fl01
+assign device /central-office-fl01-.*/ = central-office-fl01
+add device group central-office-fl02
+assign device /central-office-fl02-.*/ = central-office-fl02
+add super group central-office
+assign group central-office-fl01 = central-office
+assign group central-office-fl02 = central-office
+add super group Brisbane
+assign group central-office = Brisbane
+add super group Queensland
+assign group Brisbane = Queensland
+add super group Australia
+assign group Queensland = Australia
+
+You can also use the assign command to assign a user or group to a proﬁle group.
+Use the following syntax:
+assign user {user name} = {profile name}
+assign {type} group {group regex} = {profile name}
+assign group {group regex} = {profile name}
+
+Examples
+Allow a proﬁle to access a device group:
+assign device group Alcatel = Support
+
+Allow a proﬁle to access an interface group:
+assign interface group ifspeed_10G = Support
+
+Assign a user to a location proﬁle:
+assign user a.jager = Building02
+
+Create a proﬁle group and allow it to access speciﬁc devices:
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+24 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+add profile group WAN-Tech-Support
+add device group WAN-Devices
+assign * * sys SNMPv2-MIB.sysDescr value /Cisco/ = WAN-Devices
+add report group WAN-Reports
+assign * * config vendor value /Cisco/ = WAN-Reports
+assign group WAN-Devices = WAN-Tech-Support
+assign group WAN-Reports = WAN-Tech-Support
+
+Create a proﬁle group, assign a user and allow access to devices with a speciﬁc sysName:
+add profile group Helpdesk-Profile
+assign user fred = Helpdesk-Profile
+add device group Helpdesk-Devices
+assign * /-swt|-rtr/ = Helpdesk-Devices
+assign group helpdesk-devices = Helpdesk-Profile
+
+clear
+Use the clear command to remove group assignments.
+Use the following syntax:
+clear group {group name} = {super group name}
+clear {type} {parent regex} [{child regex} [{attribute regex}]] [value {text|/
+regex/|integer|ipaddr}] [profile {profile name}] [any|all|not group {group name}
+...] = {target group} ...
+
+Example
+Assign devices to a group and then clear switches:
+assign * * sys SNMPv2-MIB.sysDescr value /Cisco/ = Cisco
+clear * * sys SNMPv2-MIB.sysDescr value "/Cisco IOS C3560/" = Cisco
+
+You can also use the clear command to remove entities from a proﬁle group.
+Use the following syntax:
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+25 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+clear user {user name} = {profile name}
+clear group {group name} = {profile name}
+clear {type} group {group regex} = {profile name}
+
+Examples
+Remove a user from a proﬁle group:
+clear user a.jager = Cisco-Only
+
+Remove a proﬁle group's access to a device group:
+clear group WAN-Device = WAN-Tech-Support
+
+count
+Use the count command to return the number of entities in a group.
+Use the following syntax:
+count {type} group {group regex}
+
+Example
+Count the number of interfaces in a group:
+count interface group uplinks
+1069
+
+delete
+Use the delete command to remove a single group. Use the following syntax:
+delete {type} group {group name}
+
+Examples
+Delete a device group:
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+26 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+delete device group core-routers
+
+Delete an interface group:
+delete interface group uplinks
+
+Delete a super group:
+delete super group SFO-Campus
+
+get
+Use the get command to check if a group exists. Use the following syntax:
+get group {group name}
+
+Example
+get group Cisco
+device
+
+You can also use the get command to check if a proﬁle group exists.
+Use the following syntax:
+get profile user {user name}
+
+Example
+Show the proﬁle allocated to a user:
+get profile user a.jager
+Support
+
+list
+Use the list command to see the groups in a speciﬁc type.
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+27 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Use the following syntax:
+list {type} group [{parent name} [{child name} [{attribute name}]]] [profile
+{profile name}] [super {super group name}]
+
+Examples
+list profile group
+list device group
+list * group
+
+You can also use the list command to ﬁnd the proﬁle groups associated with an entity.
+Use the following syntax:
+list profile {type} {parent name} [[{child name}] {attribute name}]
+
+Examples
+Find the groups associated with a proﬁle group:
+list * group profile Support
+super,Australia
+super,Brisbane
+super,central-office
+device,Cisco
+device,Dell
+interface,ifspeed_1
+interface,ifspeed_1.4G
+interface,ifspeed_1.5M
+interface,ifspeed_1.8
+
+Find the devices associated with a proﬁle group:
+list device group profile Support
+Cisco
+Dell
+
+Find the interfaces associated with a proﬁle group:
+list interface group profile Support
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+28 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+ifspeed_1
+ifspeed_1.4G
+ifspeed_1.8G
+ifspeed_100G
+...
+
+Find all the super groups that a proﬁle group can access:
+list device super group profile Support
+Australia
+Brisbane
+central-office
+
+mget
+Use the mget command to retrieve large amounts of conﬁguration information for a proﬁle
+group. Use the following syntax:
+mget {type} [{parent regex} [{child regex} [{attribute regex}]]] [value {text|
+integer|/regex/|ipaddr}] [profile {profile name}] [any|all|not group {group name}
+...]
+
+Example
+Show every device that a proﬁle group can access:
+mget device profile Cisco-Only
+cisco-132-0-1
+cisco-132-0-10
+...
+
+mlist
+Use the mlist command to ﬁnd entities associated with a proﬁle group.
+Use the following syntax:
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+29 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+mlist {type} [profile {profile name}]
+
+Example
+Show which devices a proﬁle group can access:
+mlist device profile fred
+
+mtype
+Use the mtype command to return an entity type for a proﬁle group.
+Use the following syntax:
+mtype {type} [profile {profile name}]
+
+Example
+Show which entity types a proﬁle group can access:
+mtype * profile Fred
+
+prune
+Use the prune command to remove empty groups.
+Use the following syntax:
+prune {type} group [{group regex}]
+
+Examples
+Remove all empty device groups:
+prune device group
+
+Remove all empty interface groups:
+prune interface group
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+30 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+rename
+Use the rename command to rename a group. This will retain all of its associations.
+Use the following syntax:
+rename {type} group {existing group name} {new group name}
+
+Examples
+Rename a proﬁle group:
+rename profile group Support Network-Support
+
+Rename a device group:
+rename device group core-routers USA-Core-Routers
+
+Rename an interface group:
+rename interface group uplinks Switch-Uplinks
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+31 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Event commands
+Event ﬂags include:
+• ack
+• critical AKIPS automatically adds a critical event ﬂag to entities which match
+crit_event
+
+• suppress
+• warning AKIPS automatically adds a warning event ﬂag to entities which match
+warn_event
+
+• above
+• below
+
+add
+Use the add command to add an entity before creating an event.
+You can use only the critical event ﬂag with add .
+Use the following syntax:
+add event {time} {parent name} {child name} {attribute name} [{event flags}] =
+{value}
+
+Examples
+Add ifOperStatus down and up events:
+add event 0 swt250 Se0/1 IF-MIB.ifOperStatus = down
+add event 0 swt250 Se0/1 IF-MIB.ifOperStatus = up
+
+Add ping-down and SNMP-down events:
+add event 0 swt250 ping4 PING.icmpState = down
+add event 0 swt250 ping6 PING.icmpState = down
+add event 0 swt250 sys snmp.snmpState = down
+
+Create a site-speciﬁc admin state for a device which may be set by another system:
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+32 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+add enum swt250 sys admin_state
+add event 0 swt250 sys admin_state = maintenance
+add event 0 swt250 sys admin_state = online
+
+clear
+Use the clear command to clear a ﬂag from an event.
+Use the following syntax:
+clear event {time} {parent name} {child name} {attribute name} = {event flags}
+
+Example
+Clear the critical ﬂag on a ping-down event:
+clear event 1435822220 swt250 ping4 ping.icmpState = critical
+
+delete
+Use the delete command to delete an event.
+Use the following syntax:
+delete event {time} {parent name} {child name} {attribute name}
+
+Example
+Delete a down event:
+delete event 1435822225 swt250 ping4 PING.icmpState
+
+mdelete
+Use the mdelete command to delete all events for an attribute within a speciﬁc time range.
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+33 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+You can test your selection ﬁrst with mget .
+Use the following syntax:
+mdelete event time {time filter} [{parent regex} [{child regex} [{attribute
+regex}]]] [profile {profile name}] [any|all|not group {group name} ...]
+
+Example
+Delete all IF-MIB.ifOperStatus events for devices in a group for yesterday:
+mdelete event time yesterday * * IF-MIB.ifOperStatus any group Edge-Switches
+
+mget
+Use the mget command to retrieve events records in chronological order. The child
+description will display only if you include one in its conﬁguration.
+Use the following syntax:
+mget event {all,critical,enum,threshold,uptime} time {time filter} [{parent
+regex} {child regex} {attribute regex}] [profile {profile name}] [any|all|not
+group {group name} ...]
+
+Enumerated events
+Use the following syntax:
+{epoch} {parent} {child} {attribute} enum {flags} {value} [{child description}]
+
+Uptime events
+Use the following syntax:
+{epoch} {parent} {child} {attribute} uptime {flags} {last uptime in seconds}
+[{child description}]
+
+Threshold events
+Use the following syntax:
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+34 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+{epoch} {parent} {child} {attribute} threshold {flags} {rule exceeded} [{child
+description}]
+
+Examples
+Retrieve all ping-outage events for a router for the past hour:
+mget event enum time last1h Columbus-ro /ping/ *
+1435894798 Columbus-ro ping4 PING.icmpState enum none down 10.4.1.22
+1435894799 Columbus-ro ping6 PING.icmpState enum none down fd00:10:4:1::22
+1435895128 Columbus-ro ping4 PING.icmpState enum none up 10.4.1.22
+1435895129 Columbus-ro ping6 PING.icmpState enum none up fd00:10:4:1::22
+
+Retrieve all ifOperStatus events for the past day:
+mget event enum time last1d * * IF-MIB.ifOperStatus
+1435846269 NewYork-ro Se2/2 IF-MIB.ifOperStatus enum none down Link to San
+Francisco
+1435846509 NewYork-ro Se2/2 IF-MIB.ifOperStatus enum none up Link to San
+Francisco
+1435848305 Chicago-ro Se1/4 IF-MIB.ifOperStatus enum none down Link to Dallas
+1435848365 Chicago-ro Se1/4 IF-MIB.ifOperStatus enum none up Link to Dallas
+
+Retrieve all sysUpTime resets:
+mget event uptime time last1d
+1435846486 Toronto-ro sys SNMPv2-MIB.sysUpTime uptime none 19044
+1435848309 Columbus-ro sys SNMPv2-MIB.sysUpTime uptime none 7863
+1435849250 Detroit-ro sys SNMPv2-MIB.sysUpTime uptime none 10363
+1435849830 Cleveland-ro sys SNMPv2-MIB.sysUpTime uptime none 25704
+
+Retrieve all threshold events for the past hour:
+mget event threshold time last1h
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+35 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+1436104800 cisco-74-1-19 cpu.2 CISCO-PROCESS-MIB.cpm CPUTotal 1minRev threshold
+critical,above last5m,avg,60
+1436104800 Chicago-ro ping4 PING.icmpRtt threshold critical,below
+last30m,avg,40000
+1436104800 cisco-74-1-38 cpu.26 CISCO-PROCESS-MIB.cpm CPUTotal 1minRev
+threshold critical,above last5m,avg,60
+1436105101 SanFrancisco-ro ping4 PING.icmpRtt threshold critical,above
+last30m,avg,40000
+1436105101 cisco-74-1-17 cpu.4 CISCO-PROCESS-MIB.cpm CPUTotal 1minRev threshold
+critical,below last5m,avg,60
+1436105101 cisco-74-1-29 cpu.2 CISCO-PROCESS-MIB.cpm CPUTotal1min threshold
+critical,above last5m,avg,60
+1436105101 cisco-74-1-30 cpu.2 CISCO-PROCESS-MIB.cpm CPUTotal1min threshold
+critical,above last5m,avg,60
+1436105101 NewYork-ro ping6 PING.icmpRtt threshold critical,above
+last30m,avg,40000
+1436105101 NewYork-ro ping4 PING.icmpRtt threshold critical,above
+last30m,avg,40000
+1436105101 Chicago-ro ping4 PING.icmpRtt threshold critical,above
+last30m,avg,40000
+
+set
+Use the set command to set event ﬂags. Use the following syntax:
+set event {time} {parent name} {child name} {attribute name} = {event flags}
+
+Example
+Set a critical ﬂag on an existing ping-down event:
+set event 1435822220 swt250 ping4 ping.icmpState = critical
+
+tget
+Use the tget command to return time-series values for a number of events per interval.
+Use the following syntax:
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+36 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+tget event {all,critical,enum,threshold,uptime}
+{interval secs} time {time filter}
+[{parent regex} [{child regex} [{attribute regex}]]]
+[profile {profile name}] [any|all|not group {group name} ...]
+
+Example
+Retrieve time-series values for all ping events for yesterday in 24 one-hour intervals:
+tget event all 3600 time yesterday * /ping/
+506,426,460,458,440,760,315,301,232,421,332,288,196,299,380,381,495,448,497,570
+,386,430,362,530
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+37 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Time series commands
+calc
+Use the calc command to calculate a total, average or median value.
+Use the following syntax:
+calc total|avg|{median NN} time {time filter}
+{type} {parent name} {child name} {attribute regex}
+[profile {profile name}] [any|all|not group {group name} ...]
+
+Examples
+Calculate the total InOctets for a switch interface for yesterday:
+calc total time yesterday counter swt250 Fa0/1 /InOctets/
+
+Calculate the average InOctets for a switch interface for yesterday:
+calc avg time yesterday counter swt250 Fa0/1 /InOctets/
+
+mcalc
+Use the mcalc command to calculate multiple total, average or median values.
+Use the following syntax:
+mcalc total|avg|{median NN} time {time filter}
+{type} {parent regex} {child regex} {attribute regex}
+[profile {profile name}] [any|all|not group {group name} ...]
+
+Example
+Calculate the In/OutOctets for all interfaces in a group:
+mcalc total time yesterday counter * * /^IF-MIB.*InOctets|^IF-MIB.*OutOctets/
+any group wan-links
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+38 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Chicago-ro Se1/0 IF-MIB.ifInOctets = 90922240
+Chicago-ro Se1/0 IF-MIB.ifOutOctets = 112385280
+Chicago-ro Se1/1 IF-MIB.ifInOctets = 0
+Chicago-ro Se1/1 IF-MIB.ifOutOctets = 0
+Chicago-ro Se1/2 IF-MIB.ifInOctets = 11374963
+Chicago-ro Se1/2 IF-MIB.ifOutOctets = 10454049
+Chicago-ro Se1/3 IF-MIB.ifInOctets = 11409152
+
+Case study
+A customer used the mcalc command to export the utilisation data (bits in or out) from
+groups of interfaces for speciﬁc device groups, for the previous ﬁve minutes as an average:
+mcalc avg time last5m ifrate * * /IF-MIB.if.*BitRate/ any group Circuit
+
+mget
+Use the mget command to test if an average has crossed a deﬁned threshold.
+For threshold examples, see Admin > Alerting > Threshold Alerts.
+Use the following syntax:
+mget last{duration} total|avg|nonzero
+[above|below {value}[%]] [time {time filter}]
+{type} {parent regex} {child regex} {attribute regex}
+[profile {profile name}] [any|all|not group {group name} ...]
+
+Examples
+Retrieve a list of devices in a group whose average ping RTTs have exceeded a speciﬁc value
+in a speciﬁc timeframe:
+mget last1h avg above 10000 rtt * /ping/ * any group data-center2
+
+Retrieve a list of interfaces in a group whose usage have exceeded a speciﬁc percentage in a
+speciﬁc timeframe:
+mget last5m avg above 80% * * * /ifInUtil|ifOutUtil/ any group wan-links3
+
+Retrieve a list of devices whose CPU usage have exceeded a speciﬁc percentage in a speciﬁc
+timeframe:
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+39 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+mget last5m avg above 60 * * * /CISCO-PROCESS-MIB.cpmCPU/
+
+series
+Use the series command to return time-series values for a selected time range.
+Use the following syntax:
+series [interval total|avg {secs}] time {time filter}
+{type} {parent regex} {child regex} {attribute regex}
+[profile {profile name}] [any|all|not group {group name} ...]
+
+Example
+Retrieve the total In/OutOctet values for an interface:
+series interval total 3600 time yesterday counter swt250 Fa0/1 /InOctets|
+OutOctets/
+
+swt250 Fa0/1 IF-MIB.ifHCInOctets = 2524672,2463360,2449920,
+2447488,2486656,2488064,2457856,...
+swt250 Fa0/1 IF-MIB.ifHCOutOctets = 975552,806976,803392,
+822016,802496,894144,820480,820608,...
+
+top
+Use the top command to retrieve information on the highest number of events of a
+particular type within a selected time range.
+Use the following syntax:
+top {N} [reverse] [interval avg {secs}] total|max|avg|median {NN} time {time
+filter}
+{type} {parent regex} {child regex} {attribute regex}
+[profile {profile name}] [any|all|not group {group name} ...]
+
+Example
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+40 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Retrieve the interfaces with the highest In/OutOctets for yesterday:
+top 20 total time yesterday counter * * /IF-MIB.if.*Octets/
+cisco-74-1-12 Te1/1 IF-MIB.ifHCInOctets = 134374989234176
+cisco-74-1-16 Te1/1/1 IF-MIB.ifHCOutOctets = 92564298924032
+juniper-74-2-7 xe-0/0/10.0 IF-MIB.ifHCInOctets = 92329710977024
+juniper-74-2-12 ae47.0 IF-MIB.ifHCOutOctets = 92308460535808
+cisco-74-1-24 Ethernet1/23 IF-MIB.ifHCOutOctets = 89412016799744
+cisco-74-1-24 Ethernet1/24 IF-MIB.ifHCOutOctets = 88919019356160
+juniper-74-2-10 reth0.2213 IF-MIB.ifHCOutOctets = 88832066191360
+arista-74-0-40 Ethernet5/6 IF-MIB.ifHCInOctets = 88685106167808
+cisco-74-1-17 Po55.152 IF-MIB.ifHCOutOctets = 88431959736320
+...
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+41 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Web API
+Web APIs provide a way to access data from AKIPS via HTTP.
+To use the API, speciﬁc user accounts must be created with the correct permissions,
+depending on the required access level:
+Username
+
+Permissions
+
+api-ro
+
+Read-only commands
+
+api-rw
+
+All commands
+
+Users api-ro and api-rw need to be added in User Settings.
+
+api-rw
+Go to Admin > Users / Proﬁles > User Settings.
+In the Username text ﬁeld, type api-rw
+Complete the remaining text ﬁelds.
+Click Add.
+
+api-ro
+Go to Admin > Users / Proﬁles > User Settings.
+In the Username text ﬁeld, type api-ro
+Complete the remaining text ﬁelds.
+Click Add.
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+42 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Conﬁg and Events
+Instead of using the command console or SSH, you can transport commands via HTTP.
+Use the following syntax:
+https://{server}/api-db?password={pw};cmds={query}
+
+The api-rw user can run any API command. The api-ro user can use any of the following
+read-only commands:
+aggregate
+calc
+check
+count
+cseries
+get
+list
+mcalc
+mget
+mgroup
+mlist
+mtime
+mtype
+netmask
+rget
+series
+tf
+tget
+top
+tz
+
+To activate the Conﬁg and Events web API:
+Go to Admin > API > Web API Settings.
+Click the Conﬁg and Events option On.
+Click Save.
+User api-ro or api-rw is required.
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+43 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+NetFlow
+Use the following syntax:
+https://{server}/api-flow?password={pw};{option}={value};...
+
+Option
+
+Value
+
+exporter
+
+{exporter IP}
+
+time
+
+{increments of 5 minutes}
+
+show
+
+src_ip,dst_ip
+src_host,dst_host
+src_idx,dst_idx
+src_as,dst_as
+geo,tos,proto,pkt,oct,ﬂow,conv
+
+sort
+
+src_ip | dst_ip | src_idx | dst_idx |src_as | dst_as | pkt | oct | ﬂow |
+conv
+
+proto
+
+{protocol}.{service}
+
+src_ip
+dst_ip
+any_ip
+both_ip
+
+{ip ﬁlter}
+
+src_as
+dst_as
+any_as
+both_as
+
+{Autonomous System Filter}
+
+src_idx
+dst_idx
+any_idx
+both_idx
+
+{Index Filter Number}
+
+sort_dir
+
+f|r
+
+To activate the NetFlow web API:
+Go to Admin > API > Web API Settings.
+Click the NetFlow option On.
+Click Save.
+User api-ro is required.
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+44 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+NetFlow timeseries
+Use the following syntax:
+https://{server}/api-flow-timeseries?password={pw};{option}={value};...
+
+Option
+
+Value
+
+exporter
+
+{exporter IP}
+
+time
+
+{time ﬁlter}
+
+interval
+
+{increments of 5 minutes}
+
+proto
+
+{protocol}.{service}
+
+src_ip
+dst_ip
+any_ip
+both_ip
+
+{ip ﬁlter}
+
+src_as
+dst_as
+any_as
+both_as
+
+AS Number | Name | Regex
+
+src_idx
+dst_idx
+any_idx
+both_idx
+
+{ifIndex}
+
+tos
+
+{number}
+
+Example
+Retrieve ﬁve-minute time-series values for all ﬂow records on a speciﬁc exporter:
+https://{server}/api-flow-timeseries?
+password={pw};exporter=10.0.0.254;time=last4h;interval=5
+
+Activate the NetFlow time-series web API:
+Go to Admin > API > Web API Settings.
+Click the NetFlow Time-series option On. Click
+Save.
+User api-ro is required.
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+45 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Switch Port Mapper
+Examples
+Return data from an SPM ﬁle.
+https://{server}/api-spm?password={pw};filename={file}
+
+Options:
+Filename
+
+Description
+
+Output Format (CSV)
+
+arp
+
+ARP Tables
+
+epoch,ipaddress,mac
+
+ip2mac
+
+IP to MAC mapping
+
+epoch,mac,ipaddress
+
+mac2ip
+
+MAC to IP mapping
+
+epoch,mac,ipaddress
+
+mac2sp
+
+MAC to Switch Port mapping
+
+epoch,mac,switch,port
+
+mac2vspa
+
+MAC to Vendor, Switch, Port, IP
+Address
+
+mac,vendor,switch,port,ipaddress
+
+sp2mac
+
+Switch Port to MAC
+
+switch,port,mac
+
+sp2vlan
+
+Switch Port to VLAN
+
+epoch,switch,port,vlan,id
+
+vlan2sp
+
+VLAN to Switch Port
+
+epoch,vlan,switch,port
+
+vlans
+
+List of all VLANs
+
+vlan
+
+Return search results on one/multiple MAC addresses.
+https://{server}/api-spm?password={pw};mac={MAC1,MAC2,...}
+
+Activate the Switch Port Mapper web API:
+Go to Admin > API > Web API Settings.
+Click the Switch Port Mapper option On.
+Click Save.
+User api-ro is required.
+Switch Port Mapper data is stored in CSV format. You can access it via:
+• the command console
+• system log viewer (Go to Admin > System > System Log Viewer)
+• web API
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+46 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+CSV output
+Filename
+
+Description
+
+Output format (CSV)
+
+arp
+
+ARP tables
+
+epoch,ipaddress,mac
+
+ip2mac
+
+IP to MAC mapping
+
+epoch,mac,ipaddress
+
+mac2ip
+
+MAC to IP mapping
+
+epoch,mac,ipaddress
+
+mac2sp
+
+MAC to switch interface
+mapping
+
+epoch,mac, switch,port
+
+mac2vspa
+
+MAC to vendor, switch,
+interface,IP address
+
+mac,vendor,switch,port,ipaddress
+
+sp2mac
+
+switch interface to MAC
+
+switch,port,mac
+
+sp2vlan
+
+switch interface to VLAN
+
+epoch,switch, port,vlan
+
+vlan2sp
+
+VLAN to switch interface
+
+epoch,vlan, switch,port
+
+vlans
+
+list of all VLANs
+
+vlan
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+47 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Syslog and traps
+You can use a web API wrapper for nm-msg-reporter.
+Use the following syntax:
+https://{server}/api-msg?
+password={pw};
+time={time filter};
+[addr={ip filter}];
+[type=syslog|trap];
+[device={name}|{regex}];
+[regex={regex filter}];
+[limit={qty messages}]
+
+Examples
+Retrieve all syslog messages for the past 30 minutes for devices with speciﬁc text:
+https://{server}/api-msg?password={pw};time=last30m;type=syslog;device=/^swt/;
+
+Retrieve up to a speciﬁc number of syslog messages for the past hour for a speciﬁc IP
+address:
+https://{server}/api-msg?
+password={pw};time=last1h;addr=10.1.9.6;type=syslog;regex=down;limit=5;
+
+To activate the Syslog and Traps web API:
+Go to Admin > API > Web API Settings. Click the Syslog and Traps option On.
+Click Save.
+User api-ro is required.
+
+nm-msg-reporter
+AKIPS stores all syslog and SNMP traps in a single database.
+Use the nm-msg-reporter command line tool to extract and ﬁlter messages.
+Each syslog or trap message contains:
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+48 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+• header line: {system timestamp} {type} {IP version} {IP Address}
+• message text
+• blank terminating line.
+Examples
+Retrieve all syslog messages for the past hour:
+time last1h type syslog
+1744253762 syslog 4 10.100.251.37
+info local7 1 2025-04-10T12:56:02 10.100.251.37 vlan.msgs: Port 2 link down
+1744253762 syslog 4 10.100.251.39
+info local4 1 2025-04-10T12:56:02 10.100.251.39 Sensor[1]Port tg.1.2 rx power
+sensor indicates normal (0.023 mW)
+1744253762 syslog 4 10.100.251.38
+notice local4 1 2025-04-10T12:56:02 10.100.251.38 Default[1.tSyslogD]4 Messages
+Dropped
+1744253762 syslog 4 10.100.251.40
+info local7 1 2025-04-10T12:56:02 10.100.251.40 vlan.msgs: Port 37 link UP at
+speed 10 Mbps and full-duplex
+1744253762 syslog 4 10.100.251.41
+info local4 1 2025-04-10T12:56:02 10.100.251.41 Spantree[1]Port Status: DOWN on
+Port = ge.1.31
+
+Retrieve all trap messages for the past day which contain speciﬁc text:
+type trap time last1d regex OSPF
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+49 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+1436232075 trap 4 10.4.2.26
+SNMPv2-MIB sysUpTime 0 TimeTicks 53803
+SNMPv2-MIB snmpTrapOID 0 ObjectIdentifier CISCO-SYSLOG-MIB.clog
+MessageGenerated
+CISCO-SYSLOG-MIB clogHistFacility 122 DisplayString OSPFv3
+CISCO-SYSLOG-MIB clogHistSeverity 122 ENUM 6,notice
+CISCO-SYSLOG-MIB clogHistMsgName 122 DisplayString ADJCHG
+CISCO-SYSLOG-MIB clogHistMsgText 122 DisplayString Process 1, Nbr 10.4.45.1 on
+Serial1/6 from...
+CISCO-SYSLOG-MIB clogHistTimestamp 122 TimeTicks 53803
+1436232075 trap 4 10.4.2.26
+SNMPv2-MIB sysUpTime 0 TimeTicks 53803
+SNMPv2-MIB snmpTrapOID 0 ObjectIdentifier OSPF-TRAP-MIB.ospf NbrStateChange
+OSPF-MIB ospfRouterId 10.4.2.20 IPAddress 10.4.40.1
+OSPF-MIB ospfNbrIpAddr 10.4.2.20 IPAddress 10.4.2.166
+OSPF-MIB ospfNbrAddressLessIndex 10.4.2.20 Integer 0
+OSPF-MIB ospfNbrRtrId 10.4.2.20 IPAddress 10.4.45.1
+OSPF-MIB ospfNbrState 10.4.2.20 ENUM 1,down
+
+Retrieve all syslog and trap messages for today from a speciﬁc IP address:
+time today addr 10.4.2.26
+1436232275 syslog 4 10.4.2.26
+notice local7 149:Jul 7 11:24:34.476: LINEPROTO-5-UPDOWN: Line protocol on
+Interface Serial1/6, changed...
+1436232275 syslog 4 10.4.2.26
+notice local7 150:Jul 7 11:24:34.572: OSPF-5-ADJCHG: Process 1, Nbr 10.4.45.1
+onSerial1/6 from LOADING...
+1436232275 trap 4 10.4.2.26
+SNMPv2-MIB sysUpTime 0 TimeTicks 54003
+SNMPv2-MIB snmpTrapOID 0 ObjectIdentifier OSPF-TRAP-MIB.ospf Nbr StateChange
+OSPF-MIB ospfRouterId 10.4.2.20 IPAddress 10.4.40.1
+OSPF-MIB ospfNbrIpAddr 10.4.2.20 IPAddress 10.4.2.166
+OSPF-MIB ospfNbrAddressLessIndex 10.4.2.20 Integer 0
+OSPF-MIB ospfNbrRtrId 10.4.2.20 IPAddress 10.4.45.1
+OSPF-MIB ospfNbrState 10.4.2.20 ENUM 8,full
+1436232276 trap 4 10.4.2.26
+SNMPv2-MIB sysUpTime 0 TimeTicks 54004
+SNMPv2-MIB snmpTrapOID 0 ObjectIdentifier OSPF-TRAP-MIB.ospf OriginateLsa
+OSPF-MIB ospfRouterId 10.4.2.20 IPAddress 10.4.40.1
+OSPF-MIB ospfLsdbAreaId 10.4.2.20 IPAddress 0.0.0.0
+OSPF-MIB ospfLsdbType 10.4.2.20 ENUM 1,routerLink
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+50 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Unused Interfaces
+Use the following syntax:
+https://{server}/api-unused-interfaces?password={pw};{option}={value};...
+
+Examples
+Show ifAdminStaus for all unused interfaces on swt251 .
+https://{server}/api-unused-interfaces?
+password={pw};device=swt251;ifAdminStatus=on
+swt251,Fa0/2,100000000,used,up,1461652050,uplk to swt9-2,SysMgmtProd VMWvMotion,up
+
+To activate the Unused Interfaces web API:
+Go to Admin > API > Web API Settings. Click the Unused Interfaces option On.
+Click Save.
+
+CSV output
+Field
+
+Description
+
+1
+
+device name
+
+2
+
+interface name
+
+3
+
+interface speed
+
+4
+
+used/free
+
+5
+
+current IF-MIB.ifOperStatus
+
+6
+
+last change time (epoch timestamp (seconds))
+
+7
+
+IF-MIB.ifAlias
+
+8
+
+VLAN name
+
+Options
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+51 of 139
+
+Option
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Value
+
+Required
+
+Default
+
+Comment
+
+time
+
+{time ﬁlter}
+
+optional
+
+last30d
+
+Refer to the API
+Programming Guide
+
+device
+
+{name} | {/
+regex/}
+
+optional
+
+*
+
+Device name or
+regex
+
+group
+
+{device
+group}...
+
+optional
+
+ifAdminStatus
+
+on | oﬀ
+
+optional
+
+Device groups
+oﬀ
+
+Show ifAdminStatus
+for interface
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+52 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Functions
+Overview
+This module provides utility functions, constants, and data structures used throughout the
+AKIPS system for common tasks including logging, time/date formatting, error handling,
+networking, database communication, and SNMP-based device discovery.
+It includes:
+• Predeﬁned arrays for weekdays, months, and metric preﬁxes.
+• Utility functions such as trim , errlog , and get_localtime .
+• Wrappers around AKIPS tools for sending syslog and HTTP messages ( syslog() ,
+http_send() , etc.).
+
+• A simple interface to the AKIPS database system via adb_send() and adb_result() .
+• A discovery subsystem ( discover_scan() , discover_config() , etc.) for identifying
+and conﬁguring devices using SNMP.
+
+Useful arrays
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+53 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+@weekday_names_short = (
+"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"
+);
+@weekday_names_long = (
+"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
+"Saturday", "Sunday"
+);
+@month_names_short = (
+"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov",
+"Dec"
+);
+@month_names_long = (
+"January", "February", "March", "April", "May", "June",
+"July", "August", "September", "October", "November", "December"
+);
+@days_of_month = (
+"1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th",
+"11th", "12th", "13th", "14th", "15th", "16th", "17th", "18th", "19th",
+"20th",
+"21st", "22nd", "23rd", "24th", "25th", "26th", "27th", "28th", "29th",
+"30th",
+"31st"
+);
+@days_in_month = (
+31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
+);
+@metric_prefix = (
+'p', 'n', 'u', 'm', '', 'K', 'M', 'G', 'T', 'P', 'E'
+);
+
+PRINT_LINE
+PRINT_LINE is useful when debugging. It prints the following on a single line to stderr:
+
+• date/time
+• process name
+• function name
+• ﬁlename
+• line number
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+54 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+• error message.
+Example
+sub custom_hello_world
+{
+PRINT_LINE ("Hello World!");
+return;
+}
+
+Jul
+
+4 07:44:53.979347
+
+0 ms nm-site-script-custom_hello_world 50187
+
+Akips::Site::custom_hello_world Site.pm:57
+Hello World!
+
+trim
+trim strips white space (spaces, line breaks, etc.) from a string.
+
+Example
+my $str = " Hello World! ";
+$str = trim ($str);
+print ($str); # "Hello World!"
+
+errlog
+AKIPS uses its own error log. Use the following syntax:
+errlog ({LOG_LEVEL}, {log message})
+
+Available log levels:
+• $ERR_FATAL
+• $ERR_ERROR
+• $ERR_WARNING
+• $ERR_INFO
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+55 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+• $ERR_USER
+• $ERR_DEBUG
+• $ERR_CGI
+Example
+my $error_msg = "it broke";
+errlog ($ERR_FATAL, "something went wrong - %s", $error_msg);
+
+To view error messages:
+Go to Admin > System > System Log Viewer.
+
+get_localtime()
+get_localtime() (epoch timestamp) is a wrapper around the standard localtime()
+
+Element
+
+Description
+
+sec
+
+seconds: 00 to 59
+
+min
+
+minutes: 00 to 59
+
+hour
+
+hours: 00 to 23
+
+wday
+
+day of the week: 0 = Sunday to 6 = Saturday
+
+mday
+
+day of the month: 1 to 31
+
+mon
+
+month: 0 = January to 11 = December
+
+year
+
+year, e.g. 2020
+
+yday
+
+day of the year: 0 to 364 (0 to 365 in leap years)
+
+isdst
+
+daylight saving time: 0 = No, 1 = Yes
+
+Example
+my $h_ref = get_localtime ();
+printf "%s %s %s",
+$days_of_month[$h_ref->{mday} - 1],
+$month_names_long[$h_ref->{mon}],
+$h_ref->{year};
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+56 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+mail()
+mail() takes a hash reference containing:
+
+• to
+• subject
+• body
+• attach , optionally.
+Example
+my @body = (
+"Hello,",
+"Greetings from AKIPS!",
+"Sincerely,",
+"Bob"
+);
+@files = ("/path/to/graph1.png", "/path/to/report1.pdf", "/path/to/
+report2.pdf");
+mail ({
+to => 'admin@example.com',
+subject => 'Greetings',
+body => @body,
+attach => @files, #(optional)
+});
+
+syslog()
+Element
+
+Description
+
+Options
+
+ipaddr
+
+destination
+
+IP address
+
+priority
+
+default:
+notice
+
+emergency | alert | critical | error | warning | notice
+| info | debug
+
+facility
+
+default: user
+
+auth | authpriv | console | cron | daemon | ftp |
+kern | lpr | mail | news | ntp | security | syslog |
+user | uucp | local0 | local1 | local2 | local3 | local4
+| local5 | local6 | local7
+
+message
+
+message
+body
+
+Example
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+57 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+syslog ({
+ipaddr
+=> "10.50.1.100",
+priority => "error",
+facility => "local3",
+message => "The quick brown fox has jumped",
+});
+
+http_send() and http_result()
+These HTTP functions are a wrapper around the nm-http command line tool.
+http_send() sends an HTTP request.
+http_result() sends an HTTP request and returns response data.
+
+Options
+Element
+
+Value
+
+Comment
+
+url
+
+https://www.example.com
+
+HTTP
+
+method
+
+GET, HEAD, POST, PUT, DELETE,
+CONNECT,OPTIONS, TRACE, PATCH
+
+case insensitive
+
+text/html, application/json, etc.
+
+application/x-wwwform-urlencoded =
+default
+
+content_type
+
+send custom HTTP
+headers
+
+headers
+proxy
+
+host:port
+
+send request through
+the speciﬁed proxy
+
+secure
+
+0 or 1
+
+0 = allow SSC 1 = default
+
+show_headers
+
+0 or 1
+
+0 = default 1 = show
+headers
+
+data
+
+POST data
+
+Example
+http_send()
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+58 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+# Call remote server to execute scripts
+http_send ({
+url
+=> "https://www.example.com:8080/script?name=my_script.txt",
+method
+=> "GET",
+content_type => "text/html",
+});
+http_result()
+# Call to Opsgenie api that returns some data.
+my %request;
+# Options for alert.
+my %options;
+$options{message}
+$options{priority}
+
+= "Test alert";
+= "low";
+
+= "https://api.opsgenie.com/v2/alerts";
+$request{url}
+$request{headers}
+= ["Authorization: GenieKey xxxxxx-xxxxx-xxxxx-xxxxx"];
+$request{method}
+= "post";
+$request{content_type} = "application/json";
+$request{data}
+= encode_json (\%options);
+my @result = http_result (\%request);
+
+Database interface
+The command line tool for the ADB is nm-db.
+The ADB module simpliﬁes interacting with nm-db by automatically opening and closing a
+bidirectional pipe when loading and exiting.
+
+adb_send()
+Use adb_send() to write the speciﬁed command to nm-db.
+Example
+adb_send ("add device group CoreRouters");
+adb_send ("add device group CoreSwitches");
+adb_flush ();
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+59 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+adb_flush()
+Use adb_flush() to ﬂush all buﬀered output to nm-db.
+You must do this after calling adb_send()
+
+adb_result()
+Use adb_result() to write to nm-db and return the results in either a scalar or array.
+You do not need to call adb_flush()
+Example
+my @cisco_devices = adb_result ("mget device any group Cisco");
+
+Discover
+discover_scan()
+discover_scan() performs the ﬁrst stage of the device discover and creates the
+
+intermediate ﬁles for discover_config()
+ping.scan lists the IPv4/6 addresses that responded to a ping scan.
+snmp.scan lists the SNMP walk of the SNMPv2-MIB.system for each device.
+devices lists the IPv4/6 address, SNMPv2-MIB.sysName, SNMP credentials, SNMPv2-
+
+MIB.sysObjectID and SNMPv2-MIB.sysDescr.
+Use the following syntax:
+discover_scan ( {SNMP Parameters}, {IP Address Range}, ... );
+
+Examples
+Scan three IP ranges using existing discover SNMP credentials:
+discover_scan (undef, "10.0.0.0/16", "10.3.0.0/24", "10.5.0.0/24");
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+60 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Scan multiple IP ranges using speciﬁed SNMPv2 credentials:
+discover_scan ("version 2 community loofah", "10.3.0.0/24", "10.5.0.0/24");
+
+Scan one IP address using speciﬁed SNMPv3 credentials:
+discover_scan ("version 3 sha passwd1 aes256 passwd1", "10.2.0.1");
+
+discover_config()
+discover_config() performs SNMP walks of each device which
+discover_scan() locates, then processes the data to conﬁgure each device.
+
+discover_device_rewalk()
+discover_device_rewalk() performs an SNMP walk for a speciﬁed device and then
+
+processes the data to conﬁgure the device.
+It returns:
+0 = failure
+1 = success
+Use the following syntax: FIXME:
+discover_device_rewalk (%hash_ref);
+
+Example
+discover_device_rewalk ({
+ipaddr = > "10.1.2.3",
+device = > "atlanta-ro",
+});
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+61 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Regex
+AKIPS API requires that:
+• all regex strings be enclosed within / / (forward slashes)
+• regex that contains spaces also be enclosed within " " (double quotation marks).
+To negate regex, use the following syntax:
+/!{regex}/
+
+Be precise with your syntax so that it performs quickly and eﬃciently.
+E.g. /^NewYork-Router/ is faster than /NewYork-Router/ because it speciﬁes that the start
+of the match must begin with NewYork-Router.
+
+Regex ﬁlters
+You can use regex to ﬁlter data in Dashboards and Reports
+Examples: Must match akips09 or akips134 :
+/akips09|akips134/
+
+Must match AKDSQ , AKDSI , AKDPR , MSD or EIA :
+/AKDSQ|AKDSI|AKDPR|MSD|EIA/
+
+Match anything with SD followed by any number from 4 to 9:
+/SD\[4-9\]/
+
+Match anything that starts with fa or gi and only those from 0 to 5:
+/^(fa|gi)[0-5]/
+
+Check your regex:
+Go to Tools > Regex Checker. Paste sample text into the text ﬁeld.
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+62 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Type the regex you want to check, without / / (forward slashes), into the Regex text ﬁeld.
+Click Test Regex.
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+63 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Entities
+The ADB architecture deﬁnes three levels of entities:
+• parents
+• childs
+• attributes
+You must create entities in the following order:
+• create the parent before you add a child
+• create the child before you add an attribute.
+Each entity must have a type, which you cannot change once created.
+Level
+
+Entity
+
+Type
+
+Value
+
+Notes
+
+1
+
+parent
+
+Y
+
+N
+
+a parent is an independent item
+
+2
+
+child
+
+Y
+
+optional
+
+a child is a component of its parent
+entity
+
+3
+
+attribute
+
+Y
+
+Y
+
+an attribute is a component of its
+parent and child entities
+
+Example
+To measure the ﬂow of traﬃc (by counting the number of incoming bytes, or InOctets) for a
+particular router:
+• the parent is a device
+• the child is an interface
+• the attribute is a counter.
+You could deﬁne it as:
+Level
+
+Entity
+
+Type
+
+Value
+
+Name
+
+1
+
+parent
+
+device
+
+router01
+
+2
+
+child
+
+interface
+
+1,Test network
+
+Sel1/1
+
+3
+
+attribute
+
+counter
+
+1
+
+IF-MIB.ifHCInOctets
+
+Level 1: parent
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+64 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Parent types:
+• parent (generic)
+• device
+• user
+• report.
+
+Level 2: child
+Child types:
+• child (generic)
+• interface
+• ipsla
+• memory
+• processor
+• storage
+• system
+• temperature.
+A child may optionally have a value in the format of index,[description]
+E.g. a child, Fa0/1, may be assigned a value of 1,Link to server:
+• 1 is the ifIndex of the interface in ifTable
+• Link to server is the ifAlias.
+
+Level 3: attribute
+Attribute types:
+Type
+
+Value
+
+Example
+
+counter
+
+must be 1
+
+1
+
+enum
+
+positive integer,text (enumerated list)
+
+1,up 2,down
+
+gauge
+
+scale: integer (positive to multiply, negative to
+divide)
+
+-2
+
+integer
+
+positive or negative whole number or 0
+
+100287
+
+RTT
+
+positive integer (microseconds)
+
+430
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+65 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Type
+
+Value
+
+Example
+
+text
+
+up to 2000 characters
+
+the quick brown
+fox
+
+timestamp
+
+seconds since start of Unix epoch
+
+1406787487
+
+uptime
+
+seconds since status change
+
+13095
+
+Virtual attributes
+AKIPS doesn't poll virtual attributes but instead meaningfully interprets the data. E.g. ifutil is
+the in-rate divided by the interface speed.
+Virtual attribute types:
+Type Description
+ifutil interface utilisation
+ifrate interface bps
+vutil utilisation
+vnutil calculate used from free
+vdiff difference x = a-b temp_f convert C to F
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+66 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Events
+Events records
+AKIPS stores events records in chronologically ordered blocks.
+After 72 hours, AKIPS compresses and archives events records. You will not be able to edit or
+delete these.
+Events records may include:
+• enumeration changes
+• uptime resets
+• threshold events.
+Each record in the events database includes:
+• event time (epoch timestamp)
+• entity (parent, child or attribute)
+• ﬂags (critical, enum, threshold and uptime)
+• value.
+To view enumeration and uptime attributes:
+Go to Admin > Alerting > Status Alerts.
+Scroll down the right-hand side of the page to ﬁnd the table of Status Attributes.
+To view threshold attributes:
+Go to Admin > Alerting > Threshold Alerts.
+Scroll down the right-hand side of the page to ﬁnd the table of Threshold Attributes.
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+67 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Groups
+Groups
+When you create a group, specify the group type. You can assign an entity only to a group
+with the same type.
+A child inherits group assignments from its parent.
+An attribute inherits group assignments from both its child and parent.
+
+Super groups
+Use super groups (groups of groups) to create a hierarchy of your network.
+You cannot assign an entity directly to a super group. You can assign only a group to a super
+group.
+Example
+Assign a router on ﬂoor 1 of building A to both:
+• ﬂoor 1 group
+• building A router group.
+Further assign the building A router group to both:
+• building A super group
+• router super group.
+Edit a super group:
+Go to Admin > Grouping > Manual Grouping.
+Click Super Groups.
+Select the relevant super group.
+Change the super group's name:
+Overtype the name.
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+68 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Click Rename.
+Edit the super group's conﬁguration:
+Click Edit.
+Select or deselect the relevant checkboxes
+Delete the super group:
+Click Delete.
+
+10/15/2025, 4:04 PM
+
+AKIPS Documentation v25.5
+
+69 of 139
+
+https://akipsdcm0001.llnl.gov/docs/print.html
+
+Time series
+The features for time series include:
+• three years of historical data
+• 60-second values (no rollups or averages of stored data)
+• 30-day blocks.
+Rolling averages are available for the past ﬁve minutes to 30 days.
+Time-series data types are:
+• counters
+• gauges
+• RTT (microseconds).
+
+10/15/2025, 4:04 PM
+
+

@@ -1,0 +1,31 @@
+# Example Show Commands
+# This file demonstrates valid commands that can be executed on network switches
+# One command per line, lines starting with # are comments
+
+# Basic device information
+show version
+show inventory
+show system
+
+# Interface information
+show interfaces status
+show interfaces description
+show ip interface brief
+
+# Networking
+show ip route
+show arp
+show mac address-table
+
+# VLANs and spanning tree
+show vlan brief
+show spanning-tree summary
+
+# Neighbors and topology
+show cdp neighbors
+show lldp neighbors
+
+# Diagnostics
+show logging
+show processes cpu
+show memory statistics

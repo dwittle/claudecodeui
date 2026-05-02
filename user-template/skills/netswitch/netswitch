@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Wrapper script for netswitch skill
+# Always uses the virtual environment
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source credentials from a secure file if it exists
+# This file should be mode 600 and NOT in version control
+CREDS_FILE="$HOME/.netswitch_credentials"
+if [ -f "$CREDS_FILE" ]; then
+    # Check permissions - should be 600 or stricter
+    PERMS=$(stat -c "%a" "$CREDS_FILE" 2>/dev/null || stat -f "%A" "$CREDS_FILE" 2>/dev/null)
+    if [ "$PERMS" != "600" ] && [ "$PERMS" != "400" ]; then
+        echo "ERROR: Credentials file $CREDS_FILE must have mode 600 or 400 (currently $PERMS)" >&2
+        echo "Run: chmod 600 $CREDS_FILE" >&2
+        exit 1
+    fi
+    source "$CREDS_FILE"
+fi
+
+# Export environment variables
+export NETSWITCH_PASSWORD="${NETSWITCH_PASSWORD}"
+export NETSWITCH_USERNAME="${NETSWITCH_USERNAME}"
+export NETSWITCH_ENABLE_PASSWORD="${NETSWITCH_ENABLE_PASSWORD}"
+
+# Run the CLI with the venv python using unbuffered mode (-u)
+# This ensures output is immediately flushed and captured
+exec "$SCRIPT_DIR/.venv/bin/python3" -u "$SCRIPT_DIR/netswitch_cli.py" "$@"
