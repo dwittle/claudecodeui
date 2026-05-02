@@ -16,7 +16,7 @@
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { execSync } from 'child_process';
-import crypto from 'crypto';
+import bcrypt from 'bcrypt';
 import Database from 'better-sqlite3';
 import fs from 'fs';
 
@@ -47,11 +47,12 @@ const DB_PATH = process.env.DATABASE_PATH ||
 const TEMPLATE_DIR = join(__dirname, '../user-template');
 const VOLUME_PREFIX = 'cloudcli-data';
 
-function hashPassword(password) {
-  return crypto.createHash('sha256').update(password).digest('hex');
+async function hashPassword(password) {
+  const saltRounds = 12;
+  return await bcrypt.hash(password, saltRounds);
 }
 
-function createUserInDatabase(username, password) {
+async function createUserInDatabase(username, password) {
   const db = new Database(DB_PATH);
 
   try {
@@ -61,8 +62,8 @@ function createUserInDatabase(username, password) {
       throw new Error(`User '${username}' already exists`);
     }
 
-    // Create user
-    const passwordHash = hashPassword(password);
+    // Create user with bcrypt hash (matches auth system)
+    const passwordHash = await hashPassword(password);
     const stmt = db.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)');
     const result = stmt.run(username, passwordHash);
 
@@ -156,7 +157,7 @@ function initializeVolumeFromTemplate(userId) {
   copyTemplateToVolume(volumePath);
 }
 
-function main() {
+async function main() {
   const args = process.argv.slice(2);
 
   if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
@@ -216,7 +217,7 @@ ${colors.bright}Environment Variables:${colors.reset}
       }
     } else {
       // Create new user
-      userId = createUserInDatabase(username, password);
+      userId = await createUserInDatabase(username, password);
     }
 
     // Create volume
