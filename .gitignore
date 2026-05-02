@@ -144,3 +144,11 @@ tasks/
 # Git worktrees
 .worktrees/
 settings.json
+
+# User template - may contain sensitive tokens
+user-template/.claude/settings.json
+error-*.log
+
+# Allow user-template .claude directory (except actual settings.json)
+!user-template/.claude/
+!user-template/.claude/settings.json.example
