@@ -1,34 +1,27 @@
 #!/bin/bash
 set -e
 
-# Worker Container Entrypoint
-# Starts CloudCLI server with configuration from environment variables
+# Preserve user's settings.json if it exists before Claude Code SDK initializes
+# This ensures template settings aren't overwritten on first run
 
-# Default values
-SERVER_PORT=${SERVER_PORT:-4001}
-HOST=${HOST:-0.0.0.0}
-USER_ID=${USER_ID:-unknown}
-AGENT_TYPE=${AGENT_TYPE:-claude-code}
+SETTINGS_FILE="/home/agent/.claude/settings.json"
+BACKUP_DIR="/home/agent/.claude-config-backup"
+BACKUP_FILE="$BACKUP_DIR/settings.json"
 
-echo "========================================="
-echo "  CloudCLI Worker Container"
-echo "========================================="
-echo "User ID:    $USER_ID"
-echo "Agent Type: $AGENT_TYPE"
-echo "Port:       $SERVER_PORT"
-echo "Host:       $HOST"
-echo "========================================="
-echo ""
+# If settings.json exists but backup doesn't, create backup
+if [ -f "$SETTINGS_FILE" ] && [ ! -f "$BACKUP_FILE" ]; then
+    echo "[Entrypoint] Backing up existing settings.json"
+    mkdir -p "$BACKUP_DIR"
+    cp "$SETTINGS_FILE" "$BACKUP_FILE"
+fi
 
-# Create required directories
-mkdir -p /home/agent/.claude/projects
-mkdir -p /home/agent/.cursor/chats
-mkdir -p /home/agent/.codex/sessions
-mkdir -p /home/agent/.gemini/projects
+# If backup exists but settings.json doesn't, restore it
+if [ -f "$BACKUP_FILE" ] && [ ! -f "$SETTINGS_FILE" ]; then
+    echo "[Entrypoint] Restoring settings.json from backup"
+    mkdir -p "$(dirname "$SETTINGS_FILE")"
+    cp "$BACKUP_FILE" "$SETTINGS_FILE"
+fi
 
-# Set permissions
-chmod -R 755 /home/agent/.claude /home/agent/.cursor /home/agent/.codex /home/agent/.gemini 2>/dev/null || true
-
-# Start CloudCLI server
-echo "Starting CloudCLI server on port $SERVER_PORT..."
-exec cloudcli start --port "$SERVER_PORT" --host "$HOST"
+# Start the CloudCLI server
+cd /opt/cloudcli
+exec npx tsx --tsconfig server/tsconfig.json server/index.js

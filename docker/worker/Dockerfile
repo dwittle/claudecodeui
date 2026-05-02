@@ -33,10 +33,14 @@ COPY --chown=agent:agent . .
 WORKDIR /home/agent
 RUN mkdir -p /home/agent/workspace
 
+# Copy and set up entrypoint script that preserves settings.json
+COPY --chown=agent:agent docker/worker/entrypoint.sh /opt/cloudcli/entrypoint.sh
+RUN chmod +x /opt/cloudcli/entrypoint.sh
+
 EXPOSE 4001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:${SERVER_PORT:-4001}/api/health || exit 1
 
-# Dev-mode entrypoint: tsx runs the TypeScript-aware server straight from source.
-CMD ["sh", "-c", "cd /opt/cloudcli && npx tsx --tsconfig server/tsconfig.json server/index.js"]
+# Entrypoint preserves .claude/settings.json before starting server
+CMD ["/opt/cloudcli/entrypoint.sh"]
