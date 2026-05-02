@@ -314,6 +314,7 @@ if (MULTI_USER_MODE) {
     app.use('/api/files', authenticateToken, proxyMiddleware);
     app.use('/api/sessions', authenticateToken, proxyMiddleware);
     app.use('/api/browse-filesystem', authenticateToken, proxyMiddleware);
+    app.use('/api/create-folder', authenticateToken, proxyMiddleware);
     app.use('/api/providers', authenticateToken, proxyMiddleware);
 
     // Other routes handled by gateway
@@ -588,6 +589,8 @@ const expandWorkspacePath = (inputPath) => {
 };
 
 // Browse filesystem endpoint for project suggestions - uses existing getFileTree
+// In multi-user mode, this is proxied to worker containers
+if (!MULTI_USER_MODE) {
 app.get('/api/browse-filesystem', authenticateToken, async (req, res) => {
     try {
         const { path: dirPath } = req.query;
@@ -667,7 +670,9 @@ app.get('/api/browse-filesystem', authenticateToken, async (req, res) => {
         res.status(500).json({ error: 'Failed to browse filesystem' });
     }
 });
+}
 
+if (!MULTI_USER_MODE) {
 app.post('/api/create-folder', authenticateToken, async (req, res) => {
     try {
         const { path: folderPath } = req.body;
@@ -707,6 +712,7 @@ app.post('/api/create-folder', authenticateToken, async (req, res) => {
         res.status(500).json({ error: 'Failed to create folder' });
     }
 });
+}
 
 // Read file content endpoint
 app.get('/api/projects/:projectName/file', authenticateToken, async (req, res) => {
