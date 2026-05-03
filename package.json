@@ -37,6 +37,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p server/tsconfig.json",
     "lint": "eslint src/ server/",
     "lint:fix": "eslint src/ server/ --fix",
+    "stop": "node scripts/stop.js",
     "start": "npm run build && npm run server",
     "release": "./release.sh",
     "prepublishOnly": "npm run build",
