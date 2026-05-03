@@ -379,6 +379,9 @@ sudo systemctl status cloudcli
 # Stop the gateway server (Ctrl+C if running in foreground)
 # Or if running in background:
 pkill -f "server/index.js"
+# Note: When started via `npm run dev`, this also kills the Vite client because
+# concurrently uses --kill-others. Use Ctrl+C on the foreground process instead,
+# or run server and client separately (npm run server:dev / npm run client).
 
 # Restart the gateway server
 npm run dev
@@ -418,7 +421,7 @@ podman start cloudcli-user-1
 podman ps | grep cloudcli | awk '{print $1}' | xargs podman stop
 
 # Restart everything (gateway + all containers)
-pkill -f "server/index.js"  # Stop gateway
+pkill -f "server/index.js"  # Stop gateway (also kills Vite client if started via npm run dev)
 podman ps | grep cloudcli | awk '{print $1}' | xargs podman stop  # Stop containers
 npm run dev  # Restart gateway (will recreate containers on user login)
 
@@ -447,7 +450,7 @@ podman stop $(podman ps -a --filter name=cloudcli-user --format "{{.Names}}")
 podman rm $(podman ps -a --filter name=cloudcli-user --format "{{.Names}}")
 
 # 3. Restart gateway - it will create new containers with the updated image
-pkill -f "server/index.js"
+pkill -f "server/index.js"  # Also kills Vite client if started via npm run dev
 npm run dev  # or npm start for production
 
 # Note: User volumes persist, so data is not lost
@@ -630,7 +633,7 @@ podman exec -it cloudcli-user-1 bash
 podman build -t cloudcli-worker:latest -f docker/worker/Dockerfile .
 
 # Restart everything
-pkill -f "server/index.js"
+pkill -f "server/index.js"  # Also kills Vite client if started via npm run dev
 podman stop $(podman ps -q --filter name=cloudcli)
 npm run dev
 ```

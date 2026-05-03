@@ -4,13 +4,15 @@ import { userDb, db } from '../database/db.js';
 import { generateToken, authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
+const MULTI_USER_MODE = process.env.MULTI_USER_MODE === 'true';
 
 // Check auth status and setup requirements
 router.get('/status', async (req, res) => {
   try {
     const hasUsers = await userDb.hasUsers();
-    res.json({ 
+    res.json({
       needsSetup: !hasUsers,
+      multiUserMode: MULTI_USER_MODE,
       isAuthenticated: false // Will be overridden by frontend if token exists
     });
   } catch (error) {
@@ -19,28 +21,31 @@ router.get('/status', async (req, res) => {
   }
 });
 
-// User registration (setup) - only allowed if no users exist
+// User registration (setup) - only allowed if no users exist (single-user) or always (multi-user setup)
 router.post('/register', async (req, res) => {
   try {
     const { username, password } = req.body;
-    
+
     // Validate input
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password are required' });
     }
-    
+
     if (username.length < 3 || password.length < 6) {
       return res.status(400).json({ error: 'Username must be at least 3 characters, password at least 6 characters' });
     }
-    
+
     // Use a transaction to prevent race conditions
     db.prepare('BEGIN').run();
     try {
-      // Check if users already exist (only allow one user)
       const hasUsers = userDb.hasUsers();
-      if (hasUsers) {
+      if (hasUsers && !MULTI_USER_MODE) {
         db.prepare('ROLLBACK').run();
         return res.status(403).json({ error: 'User already exists. This is a single-user system.' });
+      }
+      if (hasUsers && MULTI_USER_MODE) {
+        db.prepare('ROLLBACK').run();
+        return res.status(403).json({ error: 'Self-registration is disabled. Contact your administrator.' });
       }
       
       // Hash password
