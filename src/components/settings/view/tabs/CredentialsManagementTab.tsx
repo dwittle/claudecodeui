@@ -4,6 +4,7 @@ import { Key, Plus, Trash2, Eye, EyeOff, Lock, AlertCircle, CheckCircle } from '
 import { Button } from '../../../../shared/view/ui';
 import SettingsSection from '../SettingsSection';
 import SettingsCard from '../SettingsCard';
+import { authenticatedFetch } from '../../../../utils/api';
 
 type Credential = {
   id: number;
@@ -44,10 +45,7 @@ export default function CredentialsManagementTab() {
 
   const fetchCredentials = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/credentials', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await authenticatedFetch('/api/credentials');
 
       if (response.status === 404) {
         setMultiUserEnabled(false);
@@ -76,13 +74,8 @@ export default function CredentialsManagementTab() {
     setMessage(null);
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/credentials', {
+      const response = await authenticatedFetch('/api/credentials', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
         body: JSON.stringify(formData)
       });
 
@@ -111,10 +104,8 @@ export default function CredentialsManagementTab() {
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/credentials/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
+      const response = await authenticatedFetch(`/api/credentials/${id}`, {
+        method: 'DELETE'
       });
 
       if (response.ok) {
