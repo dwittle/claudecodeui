@@ -574,7 +574,7 @@ class ContainerManager {
 
       // Remove the container (this is necessary to update environment variables)
       const container = this.runtime.getContainer(containerInfo.container_id);
-      await container.remove({ force: false });
+      await container.remove({ force: true });
       console.log(`[ContainerManager] Removed container ${containerInfo.container_id}`);
 
       // Delete container record from database but keep port allocated
