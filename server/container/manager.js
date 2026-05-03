@@ -122,6 +122,24 @@ class ContainerManager {
     try {
       console.log(`[ContainerManager] Creating container for user ${userId}`);
 
+      // Remove any orphaned container with the same name (e.g. DB was cleared but
+      // the runtime container was never removed).
+      const existing = await this.runtime.listContainers({
+        all: true,
+        filters: { name: [containerName] }
+      });
+      for (const c of existing) {
+        if (c.Names && c.Names.some(n => n === `/${containerName}` || n === containerName)) {
+          console.log(`[ContainerManager] Removing orphaned container ${containerName} (${c.Id.slice(0, 12)})`);
+          try {
+            const old = this.runtime.getContainer(c.Id);
+            await old.remove({ force: true });
+          } catch (rmErr) {
+            console.warn(`[ContainerManager] Could not remove orphaned container: ${rmErr.message}`);
+          }
+        }
+      }
+
       // Get available port
       const port = containerDb.getAvailablePort(
         CONTAINER_CONFIG.PORT_RANGE_START,
