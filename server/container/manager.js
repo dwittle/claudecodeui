@@ -553,14 +553,44 @@ class ContainerManager {
 
   /**
    * Restart a user's container (for credential changes)
+   * This RECREATES the container to inject updated environment variables
    * @param {number} userId
    */
   async restartUserContainer(userId) {
-    console.log(`[ContainerManager] Restarting container for user ${userId}`);
-    await this.stopUserContainer(userId);
-    // Small delay to ensure clean shutdown
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    await this.startUserContainer(userId);
+    console.log(`[ContainerManager] Restarting container for user ${userId} (recreate for credential injection)`);
+
+    const containerInfo = containerDb.getContainerByUserId(userId);
+    if (!containerInfo) {
+      console.log(`[ContainerManager] No container found for user ${userId}`);
+      return;
+    }
+
+    try {
+      // Stop the container
+      await this.stopUserContainer(userId);
+
+      // Small delay to ensure clean shutdown
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Remove the container (this is necessary to update environment variables)
+      const container = this.runtime.getContainer(containerInfo.container_id);
+      await container.remove({ force: false });
+      console.log(`[ContainerManager] Removed container ${containerInfo.container_id}`);
+
+      // Delete container record from database but keep port allocated
+      containerDb.deleteContainer(userId);
+
+      // Small delay to ensure resources are freed
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Create a new container with updated credentials
+      await this.createUserContainer(userId, containerInfo.agent_type);
+      console.log(`[ContainerManager] Created new container for user ${userId} with updated credentials`);
+
+    } catch (error) {
+      console.error(`[ContainerManager] Failed to restart container for user ${userId}:`, error.message);
+      throw error;
+    }
   }
 
   /**
