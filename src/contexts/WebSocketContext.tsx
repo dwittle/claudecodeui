@@ -24,12 +24,7 @@ const buildWebSocketUrl = (token: string | null) => {
   if (IS_PLATFORM) return `${protocol}//${window.location.host}/ws`; // Platform mode: Use same domain as the page (goes through proxy)
   if (!token) return null;
 
-  // In development mode (Vite on 5173), connect directly to backend port 3333
-  // to avoid double-proxying issues with WebSocket frames
-  const isDev = window.location.port === '5173';
-  const host = isDev ? window.location.hostname + ':3333' : window.location.host;
-
-  return `${protocol}//${host}/ws?token=${encodeURIComponent(token)}`; // OSS mode: Use same host:port that served the page
+  return `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`; // OSS mode: Vite proxies /ws → SERVER_PORT in dev; in prod the server serves both
 };
 
 const useWebSocketProviderState = (): WebSocketContextType => {

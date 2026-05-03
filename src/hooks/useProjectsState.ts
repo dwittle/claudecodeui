@@ -162,7 +162,11 @@ export function useProjectsState({
         setIsLoadingProjects(true);
       }
       const response = await api.projects();
-      const projectData = (await response.json()) as Project[];
+      if (!response.ok) {
+        throw new Error(`Failed to fetch projects: ${response.status}`);
+      }
+      const data = (await response.json()) as unknown;
+      const projectData = Array.isArray(data) ? (data as Project[]) : [];
 
       setProjects((prevProjects) => {
         if (prevProjects.length === 0) {
