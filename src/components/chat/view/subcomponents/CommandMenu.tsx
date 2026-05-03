@@ -36,6 +36,7 @@ const namespaceLabels: Record<string, string> = {
   builtin: 'Built-in Commands',
   project: 'Project Commands',
   user: 'User Commands',
+  'container-skill': 'Skills',
   other: 'Other Commands',
 };
 
@@ -44,6 +45,7 @@ const namespaceIcons: Record<string, string> = {
   builtin: '[B]',
   project: '[P]',
   user: '[U]',
+  'container-skill': '[S]',
   other: '[O]',
 };
 
@@ -139,8 +141,8 @@ export default function CommandMenu({
   }
 
   const preferredOrder = hasFrequentCommands
-    ? ['frequent', 'builtin', 'project', 'user', 'other']
-    : ['builtin', 'project', 'user', 'other'];
+    ? ['frequent', 'builtin', 'project', 'user', 'container-skill', 'other']
+    : ['builtin', 'project', 'user', 'container-skill', 'other'];
   const extraNamespaces = Object.keys(groupedCommands).filter((namespace) => !preferredOrder.includes(namespace));
   const orderedNamespaces = [...preferredOrder, ...extraNamespaces].filter((namespace) => groupedCommands[namespace]);
 

@@ -270,6 +270,22 @@ export function useChatComposerState({
         return;
       }
 
+      // Skills aren't executed via the commands API — Claude auto-invokes them
+      // via the Skill tool when the user describes a task. Replace the slash
+      // entry with a hint and let the user finish typing their request.
+      if (command.type === 'skill') {
+        const skillName = command.name.replace(/^\//, '');
+        const hint = `Use the "${skillName}" skill to `;
+        setInput(hint);
+        inputValueRef.current = hint;
+        textareaRef.current?.focus();
+        const length = hint.length;
+        requestAnimationFrame(() => {
+          textareaRef.current?.setSelectionRange(length, length);
+        });
+        return;
+      }
+
       try {
         const effectiveInput = rawInput ?? input;
         const commandMatch = effectiveInput.match(new RegExp(`${escapeRegExp(command.name)}\\s*(.*)`));
@@ -468,12 +484,13 @@ export function useChatComposerState({
       }
 
       // Intercept slash commands: if input starts with /commandName, execute as command with args
+      // Note: Skills are NOT intercepted - they should be sent as regular messages to Claude
       const trimmedInput = currentInput.trim();
       if (trimmedInput.startsWith('/')) {
         const firstSpace = trimmedInput.indexOf(' ');
         const commandName = firstSpace > 0 ? trimmedInput.slice(0, firstSpace) : trimmedInput;
         const matchedCommand = slashCommands.find((cmd: SlashCommand) => cmd.name === commandName);
-        if (matchedCommand) {
+        if (matchedCommand && matchedCommand.type !== 'skill') {
           executeCommand(matchedCommand, trimmedInput);
           setInput('');
           inputValueRef.current = '';

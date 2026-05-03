@@ -5,6 +5,8 @@ import os from 'os';
 import { CLAUDE_MODELS, CURSOR_MODELS, CODEX_MODELS } from '../../shared/modelConstants.js';
 import { parseFrontmatter } from '../utils/frontmatter.js';
 import { findAppRoot, getModuleDir } from '../utils/runtime-paths.js';
+import { containerDb } from '../database/db.js';
+import { containerRuntime } from '../container/runtime.js';
 
 const __dirname = getModuleDir(import.meta.url);
 // This route reads the top-level package.json for the status command, so it needs the real
@@ -75,6 +77,115 @@ async function scanCommandsDirectory(dir, baseDir, namespace) {
   }
 
   return commands;
+}
+
+/**
+ * Fetch skills from user's container
+ * Skills are installed in the container at ~/.claude/skills/
+ */
+async function fetchSkillsFromContainer(userId) {
+  const skills = [];
+
+  try {
+    // Get user's container info
+    const containerInfo = containerDb.getContainerByUserId(userId);
+    if (!containerInfo || !containerInfo.container_id) {
+      console.log('[fetchSkillsFromContainer] No container found for user', userId);
+      return skills;
+    }
+
+    const container = containerRuntime.getContainer(containerInfo.container_id);
+
+    // Check if container is running
+    const inspect = await container.inspect();
+    if (!inspect.State.Running) {
+      console.log('[fetchSkillsFromContainer] Container not running for user', userId);
+      return skills;
+    }
+
+    // Execute command in container to list skills
+    // This Node.js script scans ~/.claude/skills/ and outputs JSON
+    const script = `
+      const fs = require('fs');
+      const path = require('path');
+      const skillsDir = path.join(require('os').homedir(), '.claude', 'skills');
+      const skills = [];
+
+      try {
+        const entries = fs.readdirSync(skillsDir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (!entry.isDirectory()) continue;
+
+          const skillFile = path.join(skillsDir, entry.name, 'SKILL.md');
+          try {
+            const content = fs.readFileSync(skillFile, 'utf8');
+
+            // Simple frontmatter parser
+            let name = entry.name;
+            let description = '';
+
+            const fmMatch = content.match(/^---\\s*\\n([\\s\\S]*?)\\n---/);
+            if (fmMatch) {
+              const fm = fmMatch[1];
+              const nameMatch = fm.match(/^name:\\s*(.+)$/m);
+              const descMatch = fm.match(/^description:\\s*(.+)$/m);
+              if (nameMatch) name = nameMatch[1].trim().replace(/^["']|["']$/g, '');
+              if (descMatch) description = descMatch[1].trim().replace(/^["']|["']$/g, '');
+            }
+
+            skills.push({ name, description, dir: entry.name });
+          } catch (err) {
+            // Skill file doesn't exist or can't be read
+          }
+        }
+      } catch (err) {
+        // Skills directory doesn't exist
+      }
+
+      console.log(JSON.stringify(skills));
+    `;
+
+    const exec = await container.exec({
+      Cmd: ['node', '-e', script],
+      AttachStdout: true,
+      AttachStderr: true,
+    });
+
+    // Capture output
+    const stream = await exec.start({ hijack: true, stdin: false });
+    let output = '';
+
+    await new Promise((resolve, reject) => {
+      stream.on('data', (chunk) => {
+        output += chunk.toString('utf8');
+      });
+      stream.on('end', resolve);
+      stream.on('error', reject);
+    });
+
+    // Parse JSON output from the container
+    // Docker adds 8-byte headers to output, so we need to strip them
+    const cleanOutput = output.replace(/[\x00-\x1F\x7F-\x9F]/g, '').trim();
+    const jsonMatch = cleanOutput.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      const containerSkills = JSON.parse(jsonMatch[0]);
+
+      for (const skill of containerSkills) {
+        skills.push({
+          name: `/${skill.name}`,
+          path: `/home/coder/.claude/skills/${skill.dir}/SKILL.md`,
+          description: skill.description || '',
+          namespace: 'container-skill',
+          type: 'skill',
+          metadata: { type: 'skill' }
+        });
+      }
+    }
+  } catch (err) {
+    console.error('[fetchSkillsFromContainer] Error:', err.message);
+  }
+
+  return skills;
 }
 
 /**
@@ -431,6 +542,15 @@ router.post('/list', async (req, res) => {
     );
     allCommands.push(...userCommands);
 
+    // Fetch skills from user's container
+    let skills = [];
+    if (req.user && req.user.id) {
+      skills = await fetchSkillsFromContainer(req.user.id);
+    }
+
+    // Sort skills alphabetically by name
+    skills.sort((a, b) => a.name.localeCompare(b.name));
+
     // Separate built-in and custom commands
     const customCommands = allCommands.filter(cmd => cmd.namespace !== 'builtin');
 
@@ -440,7 +560,8 @@ router.post('/list', async (req, res) => {
     res.json({
       builtIn: builtInCommands,
       custom: customCommands,
-      count: allCommands.length
+      skills: skills,
+      count: allCommands.length + skills.length
     });
   } catch (error) {
     console.error('Error listing commands:', error);
