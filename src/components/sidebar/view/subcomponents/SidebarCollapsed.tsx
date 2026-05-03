@@ -1,5 +1,7 @@
-import { Settings, Sparkles, PanelLeftOpen, Bug } from 'lucide-react';
+import { Settings, Sparkles, PanelLeftOpen, Bug, LogOut } from 'lucide-react';
 import type { TFunction } from 'i18next';
+import { useAuth } from '../../../auth/context/AuthContext';
+import { IS_PLATFORM } from '../../../../constants/config';
 
 const DISCORD_INVITE_URL = 'https://discord.gg/buxwujPNRE';
 const GITHUB_ISSUES_URL = 'https://github.com/siteboon/claudecodeui/issues/new';
@@ -27,6 +29,8 @@ export default function SidebarCollapsed({
   onShowVersionModal,
   t,
 }: SidebarCollapsedProps) {
+  const { logout, user } = useAuth();
+
   return (
     <div className="flex h-full w-12 flex-col items-center gap-1 bg-background/80 py-3 backdrop-blur-sm">
       {/* Expand button with brand logo */}
@@ -74,6 +78,18 @@ export default function SidebarCollapsed({
       >
         <DiscordIcon className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
       </a>
+
+      {/* Sign out */}
+      {!IS_PLATFORM && (
+        <button
+          onClick={logout}
+          className="group flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-red-50 dark:hover:bg-red-950/30"
+          aria-label="Sign out"
+          title={user?.username ? `Sign out (${user.username})` : 'Sign out'}
+        >
+          <LogOut className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-red-500 dark:group-hover:text-red-400" />
+        </button>
+      )}
 
       {/* Update indicator */}
       {updateAvailable && (
