@@ -556,27 +556,54 @@ class ContainerManager {
     console.log(`[ContainerManager.ensureRunning] containerInfo:`, containerInfo);
 
     if (!containerInfo) {
-      // Create container if it doesn't exist
       console.log(`[ContainerManager.ensureRunning] No container found, creating new container`);
       await this.createUserContainer(userId);
       return await this.ensureRunning(userId);
     }
 
-    if (containerInfo.status === 'running') {
-      console.log(`[ContainerManager.ensureRunning] Container already running on port ${containerInfo.internal_port}`);
+    // Verify actual runtime state — the DB status can be stale if the container
+    // crashed or was stopped externally (e.g. server restart, OOM kill).
+    try {
+      const container = this.runtime.getContainer(containerInfo.container_id);
+      const inspect = await container.inspect();
+
+      if (inspect.State.Running) {
+        // Container is genuinely running — update DB if it was out of sync.
+        if (containerInfo.status !== 'running') {
+          containerDb.updateContainerStatus(userId, 'running');
+        }
+        console.log(`[ContainerManager.ensureRunning] Container running on port ${containerInfo.internal_port}`);
+        return {
+          internalPort: containerInfo.internal_port,
+          containerId: containerInfo.container_id
+        };
+      }
+
+      // Container exists but is stopped — start it.
+      console.log(`[ContainerManager.ensureRunning] Container stopped, starting it`);
+      containerDb.updateContainerStatus(userId, 'stopped');
+      await this.startUserContainer(userId);
       return {
         internalPort: containerInfo.internal_port,
         containerId: containerInfo.container_id
       };
-    }
 
-    // Start if stopped
-    console.log(`[ContainerManager.ensureRunning] Container status=${containerInfo.status}, starting container`);
-    await this.startUserContainer(userId);
-    return {
-      internalPort: containerInfo.internal_port,
-      containerId: containerInfo.container_id
-    };
+    } catch (error) {
+      // Container no longer exists in the runtime (removed externally or never created).
+      // Clean up the stale DB record and recreate from scratch.
+      const isNotFound = error.statusCode === 404 ||
+        (error.message && (error.message.includes('no such container') || error.message.includes('No such container')));
+
+      if (isNotFound) {
+        console.log(`[ContainerManager.ensureRunning] Container ${containerInfo.container_id} not found in runtime, recreating`);
+        containerDb.deleteContainer(userId);
+        containerDb.releasePort(containerInfo.internal_port);
+        await this.createUserContainer(userId);
+        return await this.ensureRunning(userId);
+      }
+
+      throw error;
+    }
   }
 
   /**
