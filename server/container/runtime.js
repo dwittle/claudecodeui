@@ -199,6 +199,18 @@ class ContainerRuntime {
   }
 
   /**
+   * Connect a container to a network
+   * @param {string} containerIdOrName - Container ID or name
+   * @param {string} networkName - Network name
+   * @returns {Promise<void>}
+   */
+  async connectContainerToNetwork(containerIdOrName, networkName) {
+    this._ensureInitialized();
+    const network = this.client.getNetwork(networkName);
+    await network.connect({ Container: containerIdOrName });
+  }
+
+  /**
    * Create a volume with runtime-specific adjustments
    * @param {Object} options - Volume creation options
    * @returns {Promise<Object>}

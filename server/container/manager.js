@@ -198,15 +198,10 @@ class ContainerManager {
         }
       };
 
-      // Only add resource limits if not in rootless mode
-      // Rootless Podman doesn't have access to CPU cgroup controller by default
-      if (!this.runtime.isRootless()) {
-        hostConfig.Memory = parseMemoryLimit(CONTAINER_CONFIG.CONTAINER_MEMORY);
-        hostConfig.NanoCpus = CONTAINER_CONFIG.CONTAINER_CPU * 1e9;
-        console.log(`[ContainerManager] Setting resource limits: Memory=${CONTAINER_CONFIG.CONTAINER_MEMORY}, CPU=${CONTAINER_CONFIG.CONTAINER_CPU}`);
-      } else {
-        console.log(`[ContainerManager] Skipping resource limits (rootless mode)`);
-      }
+      // Skip resource limits to avoid cgroup controller issues
+      // CPU limits require cgroup delegation which may not be available
+      console.log(`[ContainerManager] Skipping resource limits (cgroup compatibility)`);
+      // Note: Resource limits disabled - if needed, configure them at the host level
 
       // Create container with runtime-specific handling
       const container = await this.runtime.createContainer({
@@ -238,6 +233,20 @@ class ContainerManager {
 
       // Inject file-based credentials (SSH keys, certificates)
       await this.injectFileCredentials(container, userId, credentials);
+
+      // Connect gateway container to worker's network (for nested container architecture)
+      // This allows the gateway to reach the worker via container name
+      try {
+        const fs = await import('fs/promises');
+        const gatewayContainerId = (await fs.readFile('/etc/hostname', 'utf8')).trim();
+        if (gatewayContainerId) {
+          await this.runtime.connectContainerToNetwork(gatewayContainerId, networkName);
+          console.log(`[ContainerManager] Connected gateway ${gatewayContainerId} to network ${networkName}`);
+        }
+      } catch (error) {
+        // Ignore if already connected, not in container, or file doesn't exist
+        console.log(`[ContainerManager] Note: Could not connect gateway to network: ${error.message}`);
+      }
 
       // Log event
       containerDb.logContainerEvent(userId, container.id, 'created', {

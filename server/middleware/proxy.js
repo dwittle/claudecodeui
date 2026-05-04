@@ -38,7 +38,10 @@ export function createProxyMiddleware() {
       }
 
       const port = containerInfo.internalPort;
-      const target = `http://localhost:${port}`;
+      // Use container name for nested container architecture, localhost otherwise
+      const isGatewayContainer = process.env.HOSTNAME !== undefined;
+      const targetHost = isGatewayContainer ? containerInfo.containerName : 'localhost';
+      const target = `http://${targetHost}:${port}`;
 
       console.log(`[ProxyMiddleware] Routing user ${userId} → ${target}${req.originalUrl}`);
 
@@ -150,7 +153,9 @@ export function setupWebSocketProxy(server, authenticateWs) {
         return;
       }
 
-      const targetHost = 'localhost';
+      // Use container name for nested container architecture, localhost otherwise
+      const isGatewayContainer = process.env.HOSTNAME !== undefined;
+      const targetHost = isGatewayContainer ? containerInfo.containerName : 'localhost';
       const targetPort = containerInfo.internalPort;
       console.log(`[WebSocketProxy] Proxying WebSocket for user ${userId} → ws://${targetHost}:${targetPort}`);
 

@@ -1,0 +1,111 @@
+version: '3.8'
+
+# CloudCLI Multi-User Production Deployment
+# Uses pre-built images from GitLab Container Registry
+#
+# IMPORTANT: Before using this file:
+# 1. Update the REGISTRY and PROJECT variables below with your GitLab project path
+# 2. Login to GitLab Container Registry: podman login registry.gitlab.com
+# 3. Create a .env file with required variables (see .env.example)
+#
+# Deploy with Podman (RHEL8):
+#   podman-compose -f docker-compose.gitlab.yml up -d
+#
+# Deploy with Docker:
+#   docker-compose -f docker-compose.gitlab.yml up -d
+
+# CONFIGURATION: Update these to match your GitLab project
+# Replace 'cloudcli/cloudcli' with your GitLab username/project-name
+x-config:
+  registry: &registry "registry.gitlab.com"
+  project: &project "cloudcli/cloudcli"
+  version: &version "latest"
+
+services:
+  # Gateway Container
+  # Handles authentication, proxying, and container orchestration
+  gateway:
+    # Image format: registry.gitlab.com/username/project-name/gateway:latest
+    # Update the image line below with your actual GitLab project path
+    image: registry.gitlab.com/cloudcli/cloudcli/gateway:latest
+    container_name: cloudcli-gateway
+
+    ports:
+      - "${SERVER_PORT:-3001}:3001"
+
+    volumes:
+      # Docker socket (for Docker runtime)
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+
+      # Podman socket (for Podman runtime)
+      # Uncomment one of these based on your setup:
+      # Rootless Podman (recommended):
+      # - ${XDG_RUNTIME_DIR}/podman/podman.sock:/var/run/docker.sock:rw
+      # Rootful Podman:
+      # - /run/podman/podman.sock:/var/run/docker.sock:rw
+
+      # Persistent data directory for gateway database
+      # :Z enables SELinux labeling (required for RHEL8/Podman)
+      - ./data/gateway:/data:Z
+
+    environment:
+      # Application mode
+      - NODE_ENV=production
+      - MULTI_USER_MODE=true
+
+      # Server configuration
+      - HOST=${HOST:-0.0.0.0}
+      - SERVER_PORT=${SERVER_PORT:-3001}
+
+      # Database
+      - DATABASE_PATH=/data/auth.db
+
+      # Container runtime configuration
+      - CONTAINER_RUNTIME=${CONTAINER_RUNTIME:-auto}
+      - DOCKER_HOST=${DOCKER_HOST:-unix:///var/run/docker.sock}
+      - ENABLE_PODMAN_SOCKET=${ENABLE_PODMAN_SOCKET:-true}
+
+      # Worker container configuration
+      # IMPORTANT: Update this to match your GitLab registry path
+      - CONTAINER_BASE_IMAGE=registry.gitlab.com/cloudcli/cloudcli/worker:latest
+      - CONTAINER_PORT_START=${CONTAINER_PORT_START:-4001}
+      - CONTAINER_PORT_END=${CONTAINER_PORT_END:-5000}
+      - CONTAINER_MEMORY_LIMIT=${CONTAINER_MEMORY_LIMIT:-2g}
+      - CONTAINER_CPU_LIMIT=${CONTAINER_CPU_LIMIT:-1.0}
+      - CONTAINER_STOP_ON_LOGOUT=${CONTAINER_STOP_ON_LOGOUT:-false}
+
+      # Security - REQUIRED!
+      # Generate with: openssl rand -hex 32
+      - ENCRYPTION_MASTER_KEY=${ENCRYPTION_MASTER_KEY}
+
+    networks:
+      - cloudcli-gateway
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Security options for Podman/RHEL8
+    security_opt:
+      - label=type:container_runtime_t  # Allow container to manage other containers
+
+    # For rootless Podman, map to your user UID/GID
+    # Uncomment and adjust if needed:
+    # user: "1000:1000"
+
+networks:
+  cloudcli-gateway:
+    driver: bridge
+    name: cloudcli-gateway
+
+# Note: Worker containers are created dynamically by the gateway
+# Each user gets their own isolated container with:
+# - Dedicated network (cloudcli-net-<username>)
+# - Persistent volume (cloudcli-data-<username>)
+# - Port allocation from CONTAINER_PORT_START to CONTAINER_PORT_END
+# - Resource limits (memory and CPU)

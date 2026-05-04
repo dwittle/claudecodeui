@@ -415,6 +415,40 @@ For 100+ users, consider:
 - Redis for session state
 - Load balancer for multiple gateway instances
 
+## Enterprise Deployment (RHEL8)
+
+For production deployments on Red Hat Enterprise Linux 8 (RHEL8) or compatible systems, see the dedicated **[RHEL8 Deployment Guide](../DEPLOY_RHEL8.md)** which covers:
+
+- Podman-specific configuration
+- SELinux compatibility
+- Rootless mode setup
+- Pre-built images from GitLab Container Registry
+- Systemd service integration
+- Production hardening and security
+- Troubleshooting RHEL8-specific issues
+
+### Quick RHEL8 Deployment
+
+```bash
+# Login to GitLab Container Registry
+podman login registry.gitlab.com
+
+# Download compose file
+curl -O https://raw.githubusercontent.com/siteboon/claudecodeui/main/docker-compose.gitlab.yml
+
+# Configure and deploy
+# See DEPLOY_RHEL8.md for complete instructions
+podman-compose -f docker-compose.gitlab.yml up -d
+```
+
+## Additional Documentation
+
+- **[RHEL8 Deployment Guide](../DEPLOY_RHEL8.md)** - Enterprise deployment on RHEL8
+- **[Deployment Options](../docs/DEPLOYMENT_OPTIONS.md)** - Compare all deployment methods
+- **[GitLab CI/CD Guide](../docs/GITLAB_CI_CD.md)** - Automated builds and registry
+- **[Podman Support](../docs/PODMAN_SUPPORT.md)** - Podman-specific details
+- **[Multi-User Architecture](../MULTI_USER_ARCHITECTURE.md)** - Architecture overview
+
 ## Support
 
 - Documentation: https://cloudcli.ai/docs

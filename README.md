@@ -110,7 +110,26 @@ podman-compose -f podman-compose.yml up -d
 # or for rootless: systemctl --user enable --now podman.socket
 ```
 
-See the [Multi-User Architecture](MULTI_USER_ARCHITECTURE.md) and [Podman Support Guide](docs/PODMAN_SUPPORT.md) for details.
+**Production Deployment (RHEL8/Enterprise):**
+
+For multi-user production deployments on RHEL8 or compatible systems, use pre-built images from GitLab Container Registry:
+
+```bash
+# Login to GitLab Container Registry
+podman login registry.gitlab.com
+
+# Download and configure
+curl -O https://raw.githubusercontent.com/siteboon/claudecodeui/main/docker-compose.gitlab.yml
+# Edit docker-compose.gitlab.yml with your GitLab project path
+# Create .env file (see DEPLOY_RHEL8.md for details)
+
+# Deploy
+podman-compose -f docker-compose.gitlab.yml up -d
+```
+
+See the **[RHEL8 Deployment Guide](DEPLOY_RHEL8.md)** for complete setup instructions, security hardening, and troubleshooting.
+
+For architecture details, see the [Multi-User Architecture](MULTI_USER_ARCHITECTURE.md) and [Podman Support Guide](docs/PODMAN_SUPPORT.md).
 
 #### Docker Sandboxes (Experimental)
 

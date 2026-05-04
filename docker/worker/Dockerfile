@@ -18,16 +18,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # (provided by the sandbox base image).
 RUN mkdir -p /opt/cloudcli && chown -R agent:agent /opt/cloudcli
 
-USER agent
 WORKDIR /opt/cloudcli
 
 # Install dependencies first for layer caching.
-COPY --chown=agent:agent package.json package-lock.json ./
-COPY --chown=agent:agent scripts/ scripts/
-RUN npm install --legacy-peer-deps
+COPY package.json package-lock.json ./
+COPY scripts/ scripts/
+
+# Install and rebuild as root to avoid permission issues with native modules
+RUN npm install --legacy-peer-deps --ignore-scripts && \
+    node scripts/fix-node-pty.js && \
+    npm rebuild && \
+    chown -R agent:agent /opt/cloudcli
 
 # Copy the rest of the source.
-COPY --chown=agent:agent . .
+COPY . .
+
+# Build both client and server (as root since we need write access)
+RUN npm run build && \
+    chown -R agent:agent /opt/cloudcli
+
+USER agent
 
 # Workspace lives under the persistent volume mounted at /home/agent.
 WORKDIR /home/agent

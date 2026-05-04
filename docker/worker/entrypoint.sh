@@ -22,6 +22,6 @@ if [ -f "$BACKUP_FILE" ] && [ ! -f "$SETTINGS_FILE" ]; then
     cp "$BACKUP_FILE" "$SETTINGS_FILE"
 fi
 
-# Start the CloudCLI server
+# Start the CloudCLI server (use built version for production)
 cd /opt/cloudcli
-exec npx tsx --tsconfig server/tsconfig.json server/index.js
+exec node dist-server/server/index.js
