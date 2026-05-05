@@ -46,8 +46,13 @@ const DB_PATH = process.env.DATABASE_PATH ||
                 (process.env.HOME ? join(process.env.HOME, '.cloudcli/auth.db') : join(__dirname, '../server/database/auth.db'));
 const TEMPLATE_DIR = join(__dirname, '../user-template');
 const VOLUME_PREFIX = 'cloudcli-data';
+const DISABLE_PASSWORD_HASHING = process.env.DISABLE_PASSWORD_HASHING === 'true';
 
 async function hashPassword(password) {
+  if (DISABLE_PASSWORD_HASHING) {
+    log.warn('WARNING: Password hashing disabled - storing plaintext password!');
+    return password;
+  }
   const saltRounds = 12;
   return await bcrypt.hash(password, saltRounds);
 }

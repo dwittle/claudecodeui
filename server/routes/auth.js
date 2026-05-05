@@ -5,6 +5,7 @@ import { generateToken, authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 const MULTI_USER_MODE = process.env.MULTI_USER_MODE === 'true';
+const DISABLE_PASSWORD_HASHING = process.env.DISABLE_PASSWORD_HASHING === 'true';
 
 // Check auth status and setup requirements
 router.get('/status', async (req, res) => {
@@ -48,10 +49,16 @@ router.post('/register', async (req, res) => {
         return res.status(403).json({ error: 'Self-registration is disabled. Contact your administrator.' });
       }
       
-      // Hash password
-      const saltRounds = 12;
-      const passwordHash = await bcrypt.hash(password, saltRounds);
-      
+      // Hash password (unless disabled for testing)
+      let passwordHash;
+      if (DISABLE_PASSWORD_HASHING) {
+        console.warn('[Auth] WARNING: Password hashing disabled - storing plaintext passwords!');
+        passwordHash = password;
+      } else {
+        const saltRounds = 12;
+        passwordHash = await bcrypt.hash(password, saltRounds);
+      }
+
       // Create user
       const user = userDb.createUser(username, passwordHash);
       
@@ -100,7 +107,15 @@ router.post('/login', async (req, res) => {
     }
     
     // Verify password
-    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    let isValidPassword;
+    if (DISABLE_PASSWORD_HASHING) {
+      // Plain text comparison (testing only)
+      isValidPassword = password === user.password_hash;
+    } else {
+      // Bcrypt comparison
+      isValidPassword = await bcrypt.compare(password, user.password_hash);
+    }
+
     if (!isValidPassword) {
       return res.status(401).json({ error: 'Invalid username or password' });
     }
