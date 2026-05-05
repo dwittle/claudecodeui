@@ -563,6 +563,10 @@ const appConfigDb = {
 const containerDb = {
   createContainer: (data) => {
     const { userId, containerId, containerName, internalPort, volumeName, networkName, agentType = 'claude-code' } = data;
+
+    // Delete any existing container record for this user first (handles restart case)
+    db.prepare('DELETE FROM user_containers WHERE user_id = ?').run(userId);
+
     const stmt = db.prepare(`
       INSERT INTO user_containers
       (user_id, container_id, container_name, internal_port, status, volume_name, network_name, agent_type)
