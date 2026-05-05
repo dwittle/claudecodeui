@@ -22,6 +22,21 @@ if [ -f "$BACKUP_FILE" ] && [ ! -f "$SETTINGS_FILE" ]; then
     cp "$BACKUP_FILE" "$SETTINGS_FILE"
 fi
 
+# Install skills on first boot
+SKILLS_INSTALLED_FLAG="/home/agent/.cloudcli/skills-installed"
+SKILLS_INSTALL_SCRIPT="/home/agent/skills/install.sh"
+
+if [ ! -f "$SKILLS_INSTALLED_FLAG" ] && [ -f "$SKILLS_INSTALL_SCRIPT" ]; then
+    echo "[Entrypoint] Running skills installation (first boot)..."
+    if bash "$SKILLS_INSTALL_SCRIPT" "/home/agent"; then
+        echo "[Entrypoint] Skills installed successfully to /home/agent/.claude/skills/"
+        mkdir -p "$(dirname "$SKILLS_INSTALLED_FLAG")"
+        touch "$SKILLS_INSTALLED_FLAG"
+    else
+        echo "[Entrypoint] Warning: Skills installation failed (continuing anyway)"
+    fi
+fi
+
 # Start the CloudCLI server
 cd /opt/cloudcli
 exec npx tsx --tsconfig server/tsconfig.json server/index.js

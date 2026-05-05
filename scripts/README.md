@@ -2,6 +2,63 @@
 
 Administrative scripts for managing the CloudCLI multi-user environment.
 
+## manage.sh
+
+Main management script for server and database operations.
+
+### Usage
+
+```bash
+# Start the gateway server
+./scripts/manage.sh start
+
+# Stop gateway only (workers keep running)
+./scripts/manage.sh stop
+
+# Stop gateway AND all worker containers
+./scripts/manage.sh stop --all
+
+# Stop worker containers only (leave gateway running)
+./scripts/manage.sh stop --containers
+
+# Restart gateway (workers keep running)
+./scripts/manage.sh restart
+
+# Restart gateway and stop all workers
+./scripts/manage.sh restart --all
+
+# Check server and container status
+./scripts/manage.sh status
+
+# Show database info (users, containers)
+./scripts/manage.sh db-info
+
+# Delete user database (requires confirmation)
+./scripts/manage.sh db-delete
+```
+
+### Commands
+
+- **start** - Start the CloudCLI gateway server (frontend + backend)
+- **stop** - Stop gateway processes (workers keep running by default)
+- **stop --all** - Stop gateway AND all worker containers
+- **stop --containers** - Stop only worker containers (leave gateway running)
+- **restart** - Restart gateway server
+- **restart --all** - Restart gateway and stop all worker containers
+- **status** - Show gateway and worker container status
+- **db-info** - Display users and containers from database
+- **db-delete** - Delete the user database and all data (requires confirmation)
+
+### Environment Variables
+
+- `DATABASE_PATH` - Override database location (default: `~/.cloudcli/auth.db`)
+
+### Notes
+
+- Server logs are written to `/tmp/dev-server.log`
+- Frontend runs on port 5173, backend on port 3001
+- Database deletion requires typing "yes" to confirm
+
 ## add-user.js
 
 Add new users with initialized home directories from a template.

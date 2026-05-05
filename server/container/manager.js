@@ -1,4 +1,8 @@
 import fs from 'fs/promises';
+import { existsSync } from 'fs';
+import { execSync } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { containerDb, credentialDbEnhanced } from '../database/db.js';
 import { encryptionService } from '../services/encryption.js';
 import { containerRuntime } from './runtime.js';
@@ -9,6 +13,9 @@ import {
   getNetworkName,
   parseMemoryLimit
 } from './config.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 /**
  * Container Manager Service
  * Orchestrates Docker/Podman containers for multi-user isolation
@@ -301,6 +308,70 @@ class ContainerManager {
   }
 
   /**
+   * Copy user template to volume
+   * @private
+   * @param {string} volumeName
+   */
+  async copyTemplateToVolume(volumeName) {
+    const templateDir = path.join(__dirname, '../../user-template');
+
+    if (!existsSync(templateDir)) {
+      console.log(`[ContainerManager] No user-template directory found, skipping template copy`);
+      return;
+    }
+
+    try {
+      // Get volume mount point
+      const volumeInfo = await this.runtime.inspectVolume(volumeName);
+      const volumePath = volumeInfo.Mountpoint;
+
+      if (!volumePath) {
+        console.warn(`[ContainerManager] Could not determine volume path for ${volumeName}`);
+        return;
+      }
+
+      // Check if template was already copied (presence of README.md from template)
+      const checkCmd = `podman unshare test -f "${volumePath}/README.md" && echo "exists" || echo "missing"`;
+      try {
+        const result = execSync(checkCmd, { encoding: 'utf-8' }).trim();
+        if (result === 'exists') {
+          console.log(`[ContainerManager] Template already copied to ${volumeName}, skipping`);
+          return;
+        }
+      } catch (error) {
+        // If check fails, proceed with copy
+      }
+
+      console.log(`[ContainerManager] Copying template to ${volumePath}`);
+
+      // Copy template files using podman unshare for proper permissions
+      // This ensures files are owned by UID 1000 (agent user in container)
+      try {
+        execSync(`podman unshare sh -c 'cp -a "${templateDir}/." "${volumePath}/" && chown -R 1000:1000 "${volumePath}"'`, {
+          encoding: 'utf-8',
+          stdio: 'pipe'
+        });
+        console.log(`[ContainerManager] Template copied successfully with correct ownership`);
+      } catch (error) {
+        console.warn(`[ContainerManager] Failed to copy template with podman unshare: ${error.message}`);
+        // Fallback: try regular copy (may have permission issues)
+        try {
+          execSync(`cp -a "${templateDir}/." "${volumePath}/"`, {
+            encoding: 'utf-8',
+            stdio: 'pipe'
+          });
+          console.log(`[ContainerManager] Template copied (ownership may need adjustment)`);
+        } catch (fallbackError) {
+          console.warn(`[ContainerManager] Failed to copy template: ${fallbackError.message}`);
+        }
+      }
+    } catch (error) {
+      console.error(`[ContainerManager] Error copying template to ${volumeName}:`, error.message);
+      // Don't throw - template copy is nice-to-have, not critical
+    }
+  }
+
+  /**
    * Create a persistent volume for a user
    * @private
    * @param {string} volumeName
@@ -311,19 +382,23 @@ class ContainerManager {
         filters: { name: [volumeName] }
       });
 
-      if (volumes.Volumes && volumes.Volumes.length > 0) {
+      const volumeExists = volumes.Volumes && volumes.Volumes.length > 0;
+
+      if (!volumeExists) {
+        await this.runtime.createVolume({
+          Name: volumeName,
+          Labels: {
+            'cloudcli.managed': 'true'
+          }
+        });
+        console.log(`[ContainerManager] Created volume ${volumeName}`);
+      } else {
         console.log(`[ContainerManager] Volume ${volumeName} already exists`);
-        return;
       }
 
-      await this.runtime.createVolume({
-        Name: volumeName,
-        Labels: {
-          'cloudcli.managed': 'true'
-        }
-      });
+      // Always try to copy template (will check if already copied inside the function)
+      await this.copyTemplateToVolume(volumeName);
 
-      console.log(`[ContainerManager] Created volume ${volumeName}`);
     } catch (error) {
       console.error(`[ContainerManager] Failed to create volume ${volumeName}:`, error.message);
       throw error;

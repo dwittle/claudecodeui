@@ -247,6 +247,17 @@ class ContainerRuntime {
   }
 
   /**
+   * Inspect a volume
+   * @param {string} name - Volume name
+   * @returns {Promise<Object>}
+   */
+  async inspectVolume(name) {
+    this._ensureInitialized();
+    const volume = this.client.getVolume(name);
+    return volume.inspect();
+  }
+
+  /**
    * Get a container object
    * @param {string} id
    * @returns {Object}

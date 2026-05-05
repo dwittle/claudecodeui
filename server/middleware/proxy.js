@@ -51,6 +51,7 @@ export function createProxyMiddleware() {
           ws: false, // WebSocket upgrades handled by setupWebSocketProxy
           timeout: 30000,
           proxyTimeout: 30000,
+          agent: false, // Disable connection pooling to prevent ECONNRESET errors
 
           // Restore the full path that Express stripped when matching the mount point.
           pathRewrite: (_path, req) => req.originalUrl,
