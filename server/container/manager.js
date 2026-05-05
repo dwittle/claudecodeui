@@ -24,6 +24,45 @@ class ContainerManager {
   constructor() {
     this.runtime = containerRuntime;
     this.initialized = false;
+    this.hostDnsServers = this.getHostDnsServers();
+  }
+
+  /**
+   * Read DNS configuration from host's /etc/resolv.conf
+   * @private
+   * @returns {Object} Object with nameservers and search domains
+   */
+  getHostDnsServers() {
+    try {
+      const resolvConf = execSync('cat /etc/resolv.conf', { encoding: 'utf8' });
+      const nameservers = [];
+      const searchDomains = [];
+
+      for (const line of resolvConf.split('\n')) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('nameserver ')) {
+          const ns = trimmed.substring('nameserver '.length).trim();
+          if (ns) nameservers.push(ns);
+        } else if (trimmed.startsWith('search ')) {
+          const domains = trimmed.substring('search '.length).trim().split(/\s+/);
+          searchDomains.push(...domains);
+        }
+      }
+
+      console.log(`[ContainerManager] Using host DNS servers: ${nameservers.join(', ')}`);
+      console.log(`[ContainerManager] Using host DNS search domains: ${searchDomains.join(', ')}`);
+
+      return {
+        nameservers: nameservers.length > 0 ? nameservers : ['8.8.8.8', '8.8.4.4'],
+        searchDomains: searchDomains
+      };
+    } catch (error) {
+      console.warn(`[ContainerManager] Failed to read host DNS, using Google DNS: ${error.message}`);
+      return {
+        nameservers: ['8.8.8.8', '8.8.4.4'],
+        searchDomains: []
+      };
+    }
   }
 
   /**
@@ -205,6 +244,11 @@ class ContainerManager {
         }
       };
 
+      // DNS servers are configured at the network level, but search domains must be set per-container
+      if (this.hostDnsServers.searchDomains && this.hostDnsServers.searchDomains.length > 0) {
+        hostConfig.DnsSearch = this.hostDnsServers.searchDomains;
+      }
+
       // Only add resource limits if not in rootless mode
       // Rootless Podman doesn't have access to CPU cgroup controller by default
       if (!this.runtime.isRootless()) {
@@ -286,19 +330,35 @@ class ContainerManager {
         filters: { name: [networkName] }
       });
 
-      if (networks.length > 0) {
+      // Filter does partial match, need exact match
+      const exactMatch = networks.find(n => n.Name === networkName);
+
+      if (exactMatch) {
         console.log(`[ContainerManager] Network ${networkName} already exists`);
         return;
       }
 
-      await this.runtime.createNetwork({
-        Name: networkName,
-        Driver: 'bridge',
-        Internal: false,
-        Labels: {
-          'cloudcli.managed': 'true'
-        }
-      });
+      console.log(`[ContainerManager] Creating network ${networkName} with DNS servers: ${this.hostDnsServers.nameservers.join(', ')}`);
+
+      // For Podman with DNS configuration, use podman CLI directly as dockerode doesn't support network_dns_servers
+      if (this.runtime.isPodman() && this.hostDnsServers.nameservers && this.hostDnsServers.nameservers.length > 0) {
+        const dnsFlags = this.hostDnsServers.nameservers.map(dns => `--dns=${dns}`).join(' ');
+        execSync(`podman network create ${dnsFlags} ${networkName}`, { stdio: 'inherit' });
+      } else {
+        // Use Docker API for Docker or basic Podman networks
+        const networkOpts = {
+          Name: networkName,
+          Driver: 'bridge',
+          Internal: false,
+          Options: {
+            'com.docker.network.bridge.name': networkName.substring(0, 15) // Linux interface name limit
+          },
+          Labels: {
+            'cloudcli.managed': 'true'
+          }
+        };
+        await this.runtime.createNetwork(networkOpts);
+      }
 
       console.log(`[ContainerManager] Created network ${networkName}`);
     } catch (error) {
