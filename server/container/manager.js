@@ -9,6 +9,10 @@ import {
   getNetworkName,
   parseMemoryLimit
 } from './config.js';
+
+// Shared network for all workers (replaces per-user networks)
+const SHARED_WORKER_NETWORK = process.env.WORKER_NETWORK || 'cloudcli-workers';
+
 /**
  * Container Manager Service
  * Orchestrates Docker/Podman containers for multi-user isolation
@@ -46,6 +50,9 @@ class ContainerManager {
         console.log('[ContainerManager] Running in rootless mode');
       }
 
+      // Ensure shared worker network exists
+      await this.ensureSharedNetwork();
+
       // Verify encryption is configured
       if (!encryptionService.isConfigured()) {
         console.warn('[ContainerManager] WARNING: Encryption not configured. Credentials will not be injected.');
@@ -65,6 +72,32 @@ class ContainerManager {
   _ensureInitialized() {
     if (!this.initialized) {
       throw new Error('ContainerManager not initialized. Call initialize() first.');
+    }
+  }
+
+  /**
+   * Ensure the shared worker network exists
+   * @private
+   */
+  async ensureSharedNetwork() {
+    try {
+      const existing = await this.runtime.client.listNetworks({
+        filters: { name: [SHARED_WORKER_NETWORK] }
+      });
+
+      if (existing.length === 0) {
+        await this.runtime.createNetwork({
+          Name: SHARED_WORKER_NETWORK,
+          Driver: 'bridge',
+          Labels: { 'cloudcli.managed': 'true' }
+        });
+        console.log(`[ContainerManager] Created shared network: ${SHARED_WORKER_NETWORK}`);
+      } else {
+        console.log(`[ContainerManager] Shared network exists: ${SHARED_WORKER_NETWORK}`);
+      }
+    } catch (error) {
+      console.error(`[ContainerManager] Failed to ensure shared network: ${error.message}`);
+      throw error;
     }
   }
 
@@ -117,7 +150,7 @@ class ContainerManager {
 
     const containerName = getContainerName(userId);
     const volumeName = getVolumeName(userId);
-    const networkName = getNetworkName(userId);
+    const networkName = SHARED_WORKER_NETWORK; // Use shared network instead of per-user
 
     try {
       console.log(`[ContainerManager] Creating container for user ${userId}`);
@@ -175,8 +208,8 @@ class ContainerManager {
         }
       }
 
-      // Create isolated network
-      await this.createUserNetwork(networkName);
+      // Shared network already created in initialize()
+      // No per-user network needed
 
       // Create persistent volume
       await this.createUserVolume(volumeName);
@@ -198,10 +231,19 @@ class ContainerManager {
         }
       };
 
-      // Skip resource limits to avoid cgroup controller issues
-      // CPU limits require cgroup delegation which may not be available
-      console.log(`[ContainerManager] Skipping resource limits (cgroup compatibility)`);
-      // Note: Resource limits disabled - if needed, configure them at the host level
+      // Apply resource limits if running rootful (rootless mode has cgroup limitations)
+      const isRootless = this.runtime.isRootless();
+      if (!isRootless && CONTAINER_CONFIG.CONTAINER_MEMORY) {
+        hostConfig.Memory = parseMemoryLimit(CONTAINER_CONFIG.CONTAINER_MEMORY);
+        console.log(`[ContainerManager] Memory limit: ${CONTAINER_CONFIG.CONTAINER_MEMORY}`);
+      }
+      if (!isRootless && CONTAINER_CONFIG.CONTAINER_CPU) {
+        hostConfig.NanoCpus = Math.round(CONTAINER_CONFIG.CONTAINER_CPU * 1e9);
+        console.log(`[ContainerManager] CPU limit: ${CONTAINER_CONFIG.CONTAINER_CPU}`);
+      }
+      if (isRootless) {
+        console.log(`[ContainerManager] Rootless mode - skipping resource limits`);
+      }
 
       // Create container with runtime-specific handling
       const container = await this.runtime.createContainer({
@@ -234,19 +276,7 @@ class ContainerManager {
       // Inject file-based credentials (SSH keys, certificates)
       await this.injectFileCredentials(container, userId, credentials);
 
-      // Connect gateway container to worker's network (for nested container architecture)
-      // This allows the gateway to reach the worker via container name
-      try {
-        const fs = await import('fs/promises');
-        const gatewayContainerId = (await fs.readFile('/etc/hostname', 'utf8')).trim();
-        if (gatewayContainerId) {
-          await this.runtime.connectContainerToNetwork(gatewayContainerId, networkName);
-          console.log(`[ContainerManager] Connected gateway ${gatewayContainerId} to network ${networkName}`);
-        }
-      } catch (error) {
-        // Ignore if already connected, not in container, or file doesn't exist
-        console.log(`[ContainerManager] Note: Could not connect gateway to network: ${error.message}`);
-      }
+      // Gateway already on shared network - no dynamic connection needed
 
       // Log event
       containerDb.logContainerEvent(userId, container.id, 'created', {
@@ -632,7 +662,8 @@ class ContainerManager {
         console.log(`[ContainerManager.ensureRunning] Container running on port ${containerInfo.internal_port}`);
         return {
           internalPort: containerInfo.internal_port,
-          containerId: containerInfo.container_id
+          containerId: containerInfo.container_id,
+          containerName: containerInfo.container_name
         };
       }
 
@@ -642,7 +673,8 @@ class ContainerManager {
       await this.startUserContainer(userId);
       return {
         internalPort: containerInfo.internal_port,
-        containerId: containerInfo.container_id
+        containerId: containerInfo.container_id,
+        containerName: containerInfo.container_name
       };
 
     } catch (error) {

@@ -51,21 +51,6 @@ const authenticateToken = async (req, res, next) => {
     return next();
   }
 
-  // Trusted network mode: skip JWT validation (useful for internal/development networks)
-  if (process.env.TRUST_INTERNAL_NETWORK === 'true') {
-    console.log('[AUTH] TRUST_INTERNAL_NETWORK enabled - bypassing JWT validation for HTTP');
-    try {
-      const user = userDb.getFirstUser();
-      if (!user) {
-        return res.status(401).json({ error: 'No user found in database' });
-      }
-      req.user = user;
-      return next();
-    } catch (error) {
-      return res.status(500).json({ error: 'Database error', details: error.message });
-    }
-  }
-
   // Normal OSS JWT validation (for gateway or standalone mode)
   const authHeader = req.headers['authorization'];
   let token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
@@ -147,20 +132,6 @@ const authenticateWebSocket = (token, req) => {
 
   // Trusted network mode: skip JWT validation, allow any connection in multi-user mode
   // This is useful for internal networks where encryption between containers is not needed
-  if (process.env.TRUST_INTERNAL_NETWORK === 'true') {
-    console.log('[AUTH] TRUST_INTERNAL_NETWORK enabled - bypassing JWT validation');
-    // Return first user for now - in multi-user mode, the container manager handles isolation
-    try {
-      const user = userDb.getFirstUser();
-      if (user) {
-        return { id: user.id, userId: user.id, username: user.username };
-      }
-    } catch (error) {
-      console.error('Failed to get first user:', error);
-    }
-    return null;
-  }
-
   // Normal OSS JWT validation
   if (!token) {
     return null;

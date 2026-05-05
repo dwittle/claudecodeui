@@ -38,8 +38,11 @@ RUN npm prune --production && npm rebuild
 # Create data directory for database
 RUN mkdir -p /data && chown -R node:node /data
 
-# Use non-root user
-USER node
+# Add explicit container-mode marker for proxy detection
+ENV IN_CONTAINER=1
+
+# Run as root for rootful Podman socket access
+# USER node  # <-- Removed to run as root
 
 # Expose gateway port
 EXPOSE 3001

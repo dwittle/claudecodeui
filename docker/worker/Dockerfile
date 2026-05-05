@@ -33,8 +33,8 @@ RUN npm install --legacy-peer-deps --ignore-scripts && \
 # Copy the rest of the source.
 COPY . .
 
-# Build both client and server (as root since we need write access)
-RUN npm run build && \
+# Build server only (workers don't serve frontend)
+RUN npm run build:server && \
     chown -R agent:agent /opt/cloudcli
 
 USER agent
