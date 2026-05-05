@@ -451,7 +451,7 @@ ${colors.bright}Commands:${colors.reset}
 
   ${colors.cyan}add${colors.reset} <username> <name> <type> <value> [description]
       Add a new encrypted credential
-      Types: env, api_key, token, password, ssh_key, certificate, other
+      Types: env_var, api_key, token, password, ssh_key, certificate, other
       Example: node scripts/manage-credentials.js add alice MY_API_KEY api_key abc123 "Production API"
 
   ${colors.cyan}get${colors.reset} <username> <name>
@@ -480,7 +480,7 @@ ${colors.bright}Environment Variables:${colors.reset}
   DATABASE_PATH              Custom database location (default: ~/.cloudcli/auth.db)
 
 ${colors.bright}Credential Types:${colors.reset}
-  env           Environment variables
+  env_var       Environment variables
   api_key       API keys and tokens
   token         OAuth tokens, JWT tokens
   password      Passwords
@@ -502,7 +502,7 @@ ${colors.bright}Examples:${colors.reset}
   node scripts/manage-credentials.js add bob GITHUB_TOKEN api_key ghp_abc123 "GitHub PAT"
 
   # Add environment variable
-  node scripts/manage-credentials.js add bob DATABASE_URL env "postgres://..."
+  node scripts/manage-credentials.js add bob DATABASE_URL env_var "postgres://..."
 
   # View credential
   node scripts/manage-credentials.js get bob GITHUB_TOKEN

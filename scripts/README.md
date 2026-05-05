@@ -164,7 +164,7 @@ node scripts/manage-credentials.js import <username> <input-file>
 
 ### Credential Types
 
-- **env** - Environment variables
+- **env_var** - Environment variables
 - **api_key** - API keys and tokens
 - **token** - OAuth tokens, JWT tokens
 - **password** - Passwords
@@ -176,7 +176,7 @@ node scripts/manage-credentials.js import <username> <input-file>
 
 ```bash
 # Add environment variable
-node scripts/manage-credentials.js add alice DATABASE_URL env "postgres://..." "Production DB"
+node scripts/manage-credentials.js add alice DATABASE_URL env_var "postgres://..." "Production DB"
 
 # Add API key
 node scripts/manage-credentials.js add alice OPENAI_KEY api_key "sk-..." "OpenAI API Key"
