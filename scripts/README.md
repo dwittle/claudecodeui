@@ -59,9 +59,86 @@ Main management script for server and database operations.
 - Frontend runs on port 5173, backend on port 3001
 - Database deletion requires typing "yes" to confirm
 
+## manage-users.js
+
+Comprehensive user management script for listing, adding, modifying, and deleting users.
+
+### Usage
+
+```bash
+# List all users
+node scripts/manage-users.js list
+
+# Add a new user
+node scripts/manage-users.js add <username> <password>
+
+# Change password
+node scripts/manage-users.js password <username> <new-password>
+
+# Activate/deactivate user
+node scripts/manage-users.js activate <username>
+node scripts/manage-users.js deactivate <username>
+
+# Delete user
+node scripts/manage-users.js delete <username>
+
+# Show user details
+node scripts/manage-users.js info <username>
+
+# Show help
+node scripts/manage-users.js help
+```
+
+### Commands
+
+- **list** - List all users with status, login history, and containers
+- **add** - Create new user with persistent volume and template files
+- **password** - Change a user's password
+- **activate** - Enable user login
+- **deactivate** - Disable user login (account remains in database)
+- **delete** - Remove user from database (does not remove volumes/containers)
+- **info** - Show detailed user information including credentials and container
+
+### Examples
+
+```bash
+# List all users
+node scripts/manage-users.js list
+
+# Add user with bcrypt-hashed password
+node scripts/manage-users.js add bob secretpass123
+
+# Add user with plaintext password (testing only)
+DISABLE_PASSWORD_HASHING=true node scripts/manage-users.js add alice pass123
+
+# View user details
+node scripts/manage-users.js info bob
+
+# Change password
+node scripts/manage-users.js password bob newpass456
+
+# Deactivate user temporarily
+node scripts/manage-users.js deactivate bob
+
+# Delete user (WARNING: doesn't remove volumes)
+node scripts/manage-users.js delete bob
+```
+
+### Environment Variables
+
+- `DATABASE_PATH` - Override database location (default: `~/.cloudcli/auth.db`)
+- `DISABLE_PASSWORD_HASHING` - Store plaintext passwords (testing only)
+
+### Notes
+
+- Passwords are hashed with bcrypt by default (saltRounds=12)
+- Add command automatically creates volumes and copies template files
+- Delete command does NOT remove containers/volumes (use `manage.sh db-delete` for full cleanup)
+- Deactivated users cannot log in but remain in the database
+
 ## add-user.js
 
-Add new users with initialized home directories from a template.
+Legacy script for adding users. **Use manage-users.js instead** for full functionality.
 
 ### Usage
 
@@ -69,40 +146,6 @@ Add new users with initialized home directories from a template.
 # Add a new user
 node scripts/add-user.js <username> <password>
 
-# Example
-node scripts/add-user.js alice secretpassword123
-
 # Reinitialize existing user from template
-node scripts/add-user.js --template-only alice
+node scripts/add-user.js --template-only <username>
 ```
-
-### What it does
-
-1. Creates user in the database with hashed password
-2. Creates a persistent podman volume: `cloudcli-data-user-{userId}`
-3. Copies all files from `user-template/` to the user's volume
-4. Sets proper ownership (UID 100999 for container user)
-
-### Template Directory
-
-The template at `user-template/` contains:
-- `.claude/settings.json` - Custom API configuration
-- `workspace/` - Default workspace directory
-
-Edit the template to customize the default environment for new users.
-
-### Environment Variables
-
-- `DATABASE_PATH` - Override database location (default: `server/database/auth.db`)
-
-### Requirements
-
-- podman CLI available in PATH
-- Access to the database file
-- Permissions to create/modify volumes (or run with appropriate privileges)
-
-### Notes
-
-- Passwords are hashed with SHA-256 before storage
-- Volume data persists across container restarts
-- Use `--template-only` to refresh an existing user's home directory without changing their password
