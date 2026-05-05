@@ -32,6 +32,7 @@ podman run -d \
   -e HOST=0.0.0.0 \
   -e DATABASE_PATH=/data/auth.db \
   -e ENCRYPTION_MASTER_KEY=120e93e3e17a0ee97f1437a019ddb5d893dea551c238d7b702c39ce6e299d8f5 \
+  -e TRUST_INTERNAL_NETWORK=true \
   --security-opt label=disable \
   cloudcliai/gateway:latest
 

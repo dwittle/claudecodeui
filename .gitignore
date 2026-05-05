@@ -152,3 +152,21 @@ error-*.log
 # Allow user-template .claude directory (except actual settings.json)
 !user-template/.claude/
 !user-template/.claude/settings.json.example
+# Development Tools and Scripts
+
+Compiled binaries (*.o, executables)
+*.o
+check-cgroups
+check-logs
+check-podman-mode
+check-status
+check-volumes
+clean-db
+enable-cpu-wrapper
+rebuild-wrapper
+restart-gateway
+restart-quick-wrapper
+start-rootful-wrapper
+
+# Local secrets
+.env.production
