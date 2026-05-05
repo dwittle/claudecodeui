@@ -180,7 +180,7 @@ status_server() {
 
 # Function to delete user database
 delete_database() {
-    print_section "Delete User Database"
+    print_section "Delete User Database and Volumes"
 
     local has_db=false
     if [ -f "$DB_PATH" ]; then
@@ -194,22 +194,48 @@ delete_database() {
         has_legacy=true
     fi
 
-    if ! $has_db && ! $has_legacy; then
-        print_warning "No database files found"
+    # Check for user volumes
+    local volumes=$(podman volume ls --filter "name=cloudcli-data-user" -q 2>/dev/null)
+    local has_volumes=false
+    if [ -n "$volumes" ]; then
+        has_volumes=true
+    fi
+
+    # Check for user networks
+    local networks=$(podman network ls --filter "label=cloudcli.managed=true" --format "{{.Name}}" 2>/dev/null | grep -v "^podman$")
+    local has_networks=false
+    if [ -n "$networks" ]; then
+        has_networks=true
+    fi
+
+    if ! $has_db && ! $has_legacy && ! $has_volumes && ! $has_networks; then
+        print_warning "No database files, volumes, or networks found"
         return 0
     fi
 
     # Confirm deletion
-    echo -e "${YELLOW}This will delete all users, containers, credentials, and settings!${NC}"
+    echo -e "${YELLOW}This will delete all users, containers, credentials, settings, and persistent data!${NC}"
     echo ""
-    echo -e "Databases to delete:"
-    if $has_db; then
-        echo -e "  ${BLUE}$DB_PATH${NC}"
+    if $has_db || $has_legacy; then
+        echo -e "Databases to delete:"
+        if $has_db; then
+            echo -e "  ${BLUE}$DB_PATH${NC}"
+        fi
+        if $has_legacy; then
+            echo -e "  ${BLUE}$legacy_db${NC} (legacy)"
+        fi
+        echo ""
     fi
-    if $has_legacy; then
-        echo -e "  ${BLUE}$legacy_db${NC} (legacy)"
+    if $has_volumes; then
+        echo -e "User volumes to delete:"
+        echo "$volumes" | sed 's/^/  /'
+        echo ""
     fi
-    echo ""
+    if $has_networks; then
+        echo -e "User networks to delete:"
+        echo "$networks" | sed 's/^/  /'
+        echo ""
+    fi
     read -p "Are you sure? (yes/no): " confirm
 
     if [ "$confirm" != "yes" ]; then
@@ -217,10 +243,10 @@ delete_database() {
         return 0
     fi
 
-    # Stop server if running
+    # Stop server and containers if running
     if is_server_running; then
-        print_info "Stopping server first..."
-        stop_server
+        print_info "Stopping server and containers first..."
+        stop_server "--all"
         sleep 2
     fi
 
@@ -236,13 +262,20 @@ delete_database() {
         rm -f "$legacy_db" "${legacy_db}-wal" "${legacy_db}-shm"
     fi
 
-    if [ ! -f "$DB_PATH" ] && [ ! -f "$legacy_db" ]; then
-        print_info "✓ All databases deleted successfully"
-        print_info "A fresh database will be created on next server start"
-    else
-        print_error "Failed to delete some database files"
-        return 1
+    # Delete user volumes
+    if $has_volumes; then
+        print_info "Deleting user volumes..."
+        echo "$volumes" | xargs podman volume rm -f 2>/dev/null || true
     fi
+
+    # Delete user networks
+    if $has_networks; then
+        print_info "Deleting user networks..."
+        echo "$networks" | xargs podman network rm 2>/dev/null || true
+    fi
+
+    print_info "✓ All databases, volumes, and networks deleted successfully"
+    print_info "A fresh environment will be created on next server start"
 }
 
 # Function to show database info
