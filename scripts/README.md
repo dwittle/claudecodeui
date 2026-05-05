@@ -136,6 +136,85 @@ node scripts/manage-users.js delete bob
 - Delete command does NOT remove containers/volumes (use `manage.sh db-delete` for full cleanup)
 - Deactivated users cannot log in but remain in the database
 
+## manage-credentials.js
+
+Manage encrypted user credentials (API keys, environment variables, tokens, etc.)
+
+### Usage
+
+```bash
+# List credentials
+node scripts/manage-credentials.js list <username>
+
+# Add credential
+node scripts/manage-credentials.js add <username> <name> <type> <value> [description]
+
+# Get credential (shows decrypted value)
+node scripts/manage-credentials.js get <username> <name>
+
+# Delete credential
+node scripts/manage-credentials.js delete <username> <name>
+
+# Export credentials to JSON
+node scripts/manage-credentials.js export <username> [output-file]
+
+# Import credentials from JSON
+node scripts/manage-credentials.js import <username> <input-file>
+```
+
+### Credential Types
+
+- **env** - Environment variables
+- **api_key** - API keys and tokens
+- **token** - OAuth tokens, JWT tokens
+- **password** - Passwords
+- **ssh_key** - SSH private keys
+- **certificate** - TLS/SSL certificates
+- **other** - Other credential types
+
+### Examples
+
+```bash
+# Add environment variable
+node scripts/manage-credentials.js add alice DATABASE_URL env "postgres://..." "Production DB"
+
+# Add API key
+node scripts/manage-credentials.js add alice OPENAI_KEY api_key "sk-..." "OpenAI API Key"
+
+# List all credentials
+node scripts/manage-credentials.js list alice
+
+# View credential value (plaintext)
+node scripts/manage-credentials.js get alice DATABASE_URL
+
+# Export for backup
+node scripts/manage-credentials.js export alice backup.json
+
+# Import from backup
+node scripts/manage-credentials.js import bob backup.json
+
+# Delete credential
+node scripts/manage-credentials.js delete alice OLD_KEY
+```
+
+### Security
+
+- All credentials are encrypted with AES-256-GCM
+- Each user has a unique encryption key derived from ENCRYPTION_MASTER_KEY
+- Export files contain plaintext credentials - keep them secure!
+- Requires ENCRYPTION_MASTER_KEY environment variable (must match server)
+
+### Environment Variables
+
+- `ENCRYPTION_MASTER_KEY` - Required for encryption/decryption
+- `DATABASE_PATH` - Override database location (default: `~/.cloudcli/auth.db`)
+
+### Notes
+
+- Delete is a soft delete (credential remains in database with is_active=0)
+- Get command displays plaintext values - use with caution
+- Export creates JSON with decrypted credentials - protect these files
+
 ## add-user.js
 
 Legacy script for adding users. **Use manage-users.js instead** for full functionality.
