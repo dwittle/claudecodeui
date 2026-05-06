@@ -1,0 +1,58 @@
+# Build artifacts and dependencies
+node_modules/
+dist/
+build/
+.npm/
+.pnpm-store/
+*.log
+
+# Development files
+.env
+.env.*
+.git/
+.github/
+.vscode/
+.idea/
+
+# Test files
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+coverage/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.swp
+*~
+
+# Credentials and secrets (NEVER include in image)
+.panos_credentials
+*_credentials
+*.key
+*.pem
+*.p12
+*.pfx
+credentials.json
+secrets.json
+
+# User data (provided via volumes at runtime)
+user-template/
+data/
+
+# Documentation (not needed in runtime image)
+docs/
+*.md
+LICENSE
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and databases (runtime only)
+*.log
+*.db
+*.db-shm
+*.db-wal

@@ -149,6 +149,14 @@ settings.json
 user-template/.claude/settings.json
 error-*.log
 
+# Credentials files (NEVER commit)
+.panos_credentials
+*_credentials
+*.key
+*.pem
+credentials.json
+secrets.json
+
 # Allow user-template .claude directory (except actual settings.json)
 !user-template/.claude/
 !user-template/.claude/settings.json.example
