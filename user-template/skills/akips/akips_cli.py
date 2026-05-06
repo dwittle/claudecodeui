@@ -14,13 +14,13 @@ from akips_client import AKiPSClient, AKiPSError
 
 
 def get_client() -> AKiPSClient:
-    """Create AKiPS client from environment variables with hardcoded defaults"""
-    # Hardcoded defaults (can be overridden by environment variables)
-    server = os.environ.get('AKIPS_SERVER', 'akipsdcm0001.llnl.gov')
-    username = os.environ.get('AKIPS_USERNAME', 'api-ro')
-    verify_ssl = os.environ.get('AKIPS_VERIFY_SSL', 'false').lower() == 'true'
+    """Create AKiPS client from environment variables with defaults"""
+    # Environment variables with defaults
+    server = os.environ.get('AKIPS_SERVER') or 'akipsdcm0001.llnl.gov'
+    username = os.environ.get('AKIPS_USERNAME') or 'api-ro'
+    verify_ssl = (os.environ.get('AKIPS_VERIFY_SSL') or 'false').lower() == 'true'
 
-    # Password MUST come from shell environment variable
+    # Password from environment (required)
     password = os.environ.get('AKIPS_API_PASSWORD')
 
     if not password:

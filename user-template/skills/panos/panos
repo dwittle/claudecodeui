@@ -5,43 +5,8 @@
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Source credentials from secure files if they exist
-# These files should be mode 600 and NOT in version control
-
-# Source PAN-OS credentials
-CREDS_FILE="$HOME/.panos_credentials"
-if [ -f "$CREDS_FILE" ]; then
-    # Check permissions - should be 600 or stricter
-    PERMS=$(stat -c "%a" "$CREDS_FILE" 2>/dev/null || stat -f "%A" "$CREDS_FILE" 2>/dev/null)
-    if [ "$PERMS" != "600" ] && [ "$PERMS" != "400" ]; then
-        echo "ERROR: Credentials file $CREDS_FILE must have mode 600 or 400 (currently $PERMS)" >&2
-        echo "Run: chmod 600 $CREDS_FILE" >&2
-        exit 1
-    fi
-    source "$CREDS_FILE"
-fi
-
-# Source netswitch credentials (for bastion host access)
-NETSWITCH_CREDS="$HOME/.netswitch_credentials"
-if [ -f "$NETSWITCH_CREDS" ]; then
-    # Check permissions - should be 600 or stricter
-    PERMS=$(stat -c "%a" "$NETSWITCH_CREDS" 2>/dev/null || stat -f "%A" "$NETSWITCH_CREDS" 2>/dev/null)
-    if [ "$PERMS" != "600" ] && [ "$PERMS" != "400" ]; then
-        echo "WARNING: Netswitch credentials file has insecure permissions $PERMS (should be 600)" >&2
-    else
-        source "$NETSWITCH_CREDS"
-    fi
-fi
-
 # Set default bastion host if not already set
-# This can be overridden in credentials file or by command-line argument
 export PANOS_BASTION_HOST="${PANOS_BASTION_HOST:-netprod0001}"
-
-# Export environment variables
-export PANOS_PASSWORD="${PANOS_PASSWORD}"
-export PANOS_USERNAME="${PANOS_USERNAME}"
-export NETSWITCH_PASSWORD="${NETSWITCH_PASSWORD}"
-export NETSWITCH_USERNAME="${NETSWITCH_USERNAME}"
 
 # Run the CLI with the venv python using unbuffered mode (-u)
 # This ensures output is immediately flushed and captured

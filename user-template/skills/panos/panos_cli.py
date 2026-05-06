@@ -15,37 +15,43 @@ from panos_client import PanosClient, PanosError, SecurityViolation, SafetyCheck
 
 def get_credentials(args) -> tuple:
     """
-    Get connection credentials from arguments and environment.
+    Get connection credentials from environment first, then arguments.
+
+    Priority: environment variables > command arguments
 
     Returns:
         Tuple of (hostname, username, password, bastion_host, bastion_username, bastion_password)
     """
     hostname = args.hostname
 
-    # Username: from argument or environment
-    username = args.username or os.environ.get('PANOS_USERNAME')
+    # Username: environment first, then argument
+    username = os.environ.get('PANOS_USERNAME') or args.username
     if not username:
-        print("ERROR: Username required (--username or PANOS_USERNAME env var)", file=sys.stderr)
+        print("ERROR: Username required (set PANOS_USERNAME env var or use --username)", file=sys.stderr)
         sys.exit(1)
 
-    # Password: MUST come from environment variable for security
+    # Password: environment first (no argument option for security)
     password = os.environ.get('PANOS_PASSWORD')
     if not password:
         print("ERROR: PANOS_PASSWORD environment variable must be set", file=sys.stderr)
         sys.exit(1)
 
-    # Bastion host: from argument or environment variable (with default)
-    bastion_host = getattr(args, 'bastion_host', None) or os.environ.get('PANOS_BASTION_HOST')
+    # Bastion host: environment first, then argument
+    bastion_host = os.environ.get('PANOS_BASTION_HOST') or getattr(args, 'bastion_host', None)
     bastion_username = None
     bastion_password = None
 
     if bastion_host:
-        # For bastion, try NETSWITCH credentials first (common jump host), then PANOS_BASTION
-        bastion_username = (getattr(args, 'bastion_username', None) or
-                          os.environ.get('NETSWITCH_USERNAME') or
-                          os.environ.get('PANOS_BASTION_USERNAME'))
-        bastion_password = (os.environ.get('NETSWITCH_PASSWORD') or
-                          os.environ.get('PANOS_BASTION_PASSWORD'))
+        # For bastion, try NETSWITCH env first, then PANOS_BASTION env, then argument
+        bastion_username = (
+            os.environ.get('NETSWITCH_USERNAME') or
+            os.environ.get('PANOS_BASTION_USERNAME') or
+            getattr(args, 'bastion_username', None)
+        )
+        bastion_password = (
+            os.environ.get('NETSWITCH_PASSWORD') or
+            os.environ.get('PANOS_BASTION_PASSWORD')
+        )
 
         if not bastion_username or not bastion_password:
             print("ERROR: Bastion credentials required (set NETSWITCH_USERNAME/PASSWORD or PANOS_BASTION_USERNAME/PASSWORD)", file=sys.stderr)
@@ -240,9 +246,14 @@ Security Features:
   - Command injection and chaining are prevented
   - All commands are validated before execution
 
-Environment Variables:
-  PANOS_USERNAME  - Default SSH username
-  PANOS_PASSWORD  - SSH password (REQUIRED)
+Environment Variables (all optional, used as defaults):
+  PANOS_USERNAME          - SSH username for firewall
+  PANOS_PASSWORD          - SSH password for firewall
+  PANOS_BASTION_HOST      - Bastion/jump host for SSH tunneling
+  NETSWITCH_USERNAME      - Bastion username (tried first)
+  NETSWITCH_PASSWORD      - Bastion password (tried first)
+  PANOS_BASTION_USERNAME  - Bastion username (fallback)
+  PANOS_BASTION_PASSWORD  - Bastion password (fallback)
 
 Examples:
   # Execute a single command

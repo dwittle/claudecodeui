@@ -125,6 +125,33 @@ Validate command(s) without executing them. Useful for testing command syntax an
 - From file: `validate --file commands.txt`
 - JSON output: `validate "show interface all" --json`
 
+## Firewall Inventory
+
+### Current Firewall Pairs
+
+The following firewall HA pairs are currently deployed:
+
+| Primary | Secondary | Purpose |
+|---------|-----------|---------|
+| ngfw1-1 | ngfw1-2 | Firewall Pair 1 |
+| ngfw2-1 | ngfw2-2 | Firewall Pair 2 |
+| ngfw3-1 | ngfw3-2 | Firewall Pair 3 |
+| ngfw4-1 | ngfw4-2 | Firewall Pair 4 |
+| ngfw5-1 | ngfw5-2 | Firewall Pair 5 |
+| ngfw6-1 | ngfw6-2 | Firewall Pair 6 |
+
+**Example usage:**
+```bash
+# Check primary firewall
+./panos show ngfw1-1 "show system info"
+
+# Check secondary firewall
+./panos show ngfw1-2 "show high-availability all"
+
+# Check multiple pairs
+./panos show-multiple ngfw1-1 "show system info" "show high-availability all"
+```
+
 ## Configuration
 
 ### Secure Credential Storage (Recommended)

@@ -15,20 +15,22 @@ from netswitch_client import NetSwitchClient, NetSwitchError, SecurityViolation
 
 def get_credentials(args) -> tuple:
     """
-    Get connection credentials from arguments and environment.
+    Get connection credentials from environment first, then arguments.
+
+    Priority: environment variables > command arguments
 
     Returns:
         Tuple of (hostname, username, password, enable_password)
     """
     hostname = args.hostname
 
-    # Username: from argument or environment
-    username = args.username or os.environ.get('NETSWITCH_USERNAME')
+    # Username: environment first, then argument
+    username = os.environ.get('NETSWITCH_USERNAME') or args.username
     if not username:
-        print("ERROR: Username required (--username or NETSWITCH_USERNAME env var)", file=sys.stderr)
+        print("ERROR: Username required (set NETSWITCH_USERNAME env var or use --username)", file=sys.stderr)
         sys.exit(1)
 
-    # Password: MUST come from environment variable for security
+    # Password: environment first (no argument option for security)
     password = os.environ.get('NETSWITCH_PASSWORD')
     if not password:
         print("ERROR: NETSWITCH_PASSWORD environment variable must be set", file=sys.stderr)

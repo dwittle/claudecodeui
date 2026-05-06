@@ -5,6 +5,7 @@ Secure SSH client for executing read-only operational commands on PAN-OS firewal
 Implements strict validation to prevent any configuration changes or command injection.
 """
 
+import os
 import re
 import paramiko
 from typing import Optional, List
@@ -118,8 +119,8 @@ class PanosClient:
 
     def __init__(self,
                  hostname: str,
-                 username: str,
-                 password: str,
+                 username: Optional[str] = None,
+                 password: Optional[str] = None,
                  port: int = 22,
                  timeout: int = 30,
                  bastion_host: Optional[str] = None,
@@ -129,25 +130,55 @@ class PanosClient:
         """
         Initialize SSH client for PAN-OS firewall.
 
+        Credentials priority: environment variables first, then explicit parameters.
+
         Args:
             hostname: Firewall hostname or IP address
-            username: SSH username
-            password: SSH password
+            username: SSH username (fallback if PANOS_USERNAME not set)
+            password: SSH password (fallback if PANOS_PASSWORD not set)
             port: SSH port (default: 22)
             timeout: Connection timeout in seconds
-            bastion_host: Optional bastion/jump host to tunnel through
-            bastion_username: Username for bastion host
-            bastion_password: Password for bastion host
+            bastion_host: Optional bastion/jump host (fallback if PANOS_BASTION_HOST not set)
+            bastion_username: Username for bastion host (fallback if NETSWITCH_USERNAME/PANOS_BASTION_USERNAME not set)
+            bastion_password: Password for bastion host (fallback if NETSWITCH_PASSWORD/PANOS_BASTION_PASSWORD not set)
             bastion_port: SSH port for bastion host (default: 22)
         """
         self.hostname = hostname
-        self.username = username
-        self.password = password
+
+        # Priority: environment variables first, then parameters
+        self.username = os.environ.get('PANOS_USERNAME') or username
+        self.password = os.environ.get('PANOS_PASSWORD') or password
+
+        if not self.username:
+            raise PanosError("Username required: set PANOS_USERNAME environment variable or provide as argument")
+        if not self.password:
+            raise PanosError("Password required: set PANOS_PASSWORD environment variable or provide as argument")
+
         self.port = port
         self.timeout = timeout
-        self.bastion_host = bastion_host
-        self.bastion_username = bastion_username
-        self.bastion_password = bastion_password
+
+        # Bastion config: environment first
+        self.bastion_host = os.environ.get('PANOS_BASTION_HOST') or bastion_host
+
+        # For bastion credentials, try NETSWITCH env vars first, then PANOS_BASTION, then parameters
+        if self.bastion_host:
+            self.bastion_username = (
+                os.environ.get('NETSWITCH_USERNAME') or
+                os.environ.get('PANOS_BASTION_USERNAME') or
+                bastion_username
+            )
+            self.bastion_password = (
+                os.environ.get('NETSWITCH_PASSWORD') or
+                os.environ.get('PANOS_BASTION_PASSWORD') or
+                bastion_password
+            )
+
+            if not self.bastion_username or not self.bastion_password:
+                raise PanosError("Bastion credentials required: set NETSWITCH_USERNAME/PASSWORD or PANOS_BASTION_USERNAME/PASSWORD environment variables")
+        else:
+            self.bastion_username = bastion_username
+            self.bastion_password = bastion_password
+
         self.bastion_port = bastion_port
         self.client: Optional[paramiko.SSHClient] = None
         self.bastion_client: Optional[paramiko.SSHClient] = None

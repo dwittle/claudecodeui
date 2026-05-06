@@ -215,6 +215,93 @@ node scripts/manage-credentials.js delete alice OLD_KEY
 - Get command displays plaintext values - use with caution
 - Export creates JSON with decrypted credentials - protect these files
 
+## import-env.js
+
+Import environment variables from your shell environment into user credentials.
+
+### Usage
+
+```bash
+# Import for specific user
+node scripts/import-env.js <username>
+
+# Import for all active users
+node scripts/import-env.js --all
+
+# Update existing credentials
+node scripts/import-env.js <username> --force
+```
+
+### Environment Variables Imported
+
+**PAN-OS Firewall:**
+- `PANOS_USERNAME` - Admin username
+- `PANOS_PASSWORD` - Admin password
+- `PANOS_BASTION_HOST` - Bastion host for SSH access
+
+**Network Switch:**
+- `NETSWITCH_USERNAME` - Switch username
+- `NETSWITCH_PASSWORD` - Switch password
+- `NETSWITCH_ENABLE_PASSWORD` - Enable mode password
+
+**AKiPS Monitoring:**
+- `AKIPS_API_PASSWORD` - API password
+- `AKIPS_SERVER` - Server hostname
+- `AKIPS_USERNAME` - API username
+- `AKIPS_VERIFY_SSL` - SSL verification flag
+
+### Workflow
+
+1. Add variables to `~/.bash_profile`:
+   ```bash
+   export PANOS_USERNAME='admin'
+   export PANOS_PASSWORD='your-password'
+   export PANOS_BASTION_HOST='netprod0001'
+   # ... etc
+   ```
+
+2. Source your profile:
+   ```bash
+   source ~/.bash_profile
+   ```
+
+3. Run import script:
+   ```bash
+   node scripts/import-env.js alice
+   ```
+
+4. Container automatically restarts on next login to apply credentials
+
+### Examples
+
+```bash
+# Import for one user
+node scripts/import-env.js bob
+
+# Import for all users
+node scripts/import-env.js --all
+
+# Update existing credentials
+node scripts/import-env.js bob --force
+
+# Import after sourcing profile
+source ~/.bash_profile && node scripts/import-env.js bob
+```
+
+### Environment Variables Required
+
+- `ENCRYPTION_MASTER_KEY` - Required for encryption/decryption
+- `DATABASE_PATH` - Override database location (default: `~/.cloudcli/auth.db`)
+
+### Notes
+
+- Variables are only imported if they are set in your current shell environment
+- Existing credentials are skipped unless `--force` is used
+- All values are encrypted with AES-256-GCM before storage
+- Containers must be restarted for changes to take effect
+- Variables are automatically injected into containers at runtime
+- To add custom variables, edit the `ENV_VARS_TO_IMPORT` array in the script
+
 ## add-user.js
 
 Legacy script for adding users. **Use manage-users.js instead** for full functionality.

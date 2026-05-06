@@ -8,6 +8,8 @@ Secure SSH access to PAN-OS firewalls for read-only operational commands.
 - ✅ **Multiple command types** - show, test, debug, safe request commands
 - ✅ **Security focused** - Multiple layers of validation and command filtering
 - ✅ **Easy to use** - Simple CLI interface
+- ✅ **Environment variable support** - Configure via environment variables
+- ✅ **Bastion/jump host support** - Connect through SSH tunnels
 - ✅ **Claude Code integration** - Works seamlessly with Claude Code
 
 ## Quick Start
@@ -27,16 +29,38 @@ This will:
 
 ### 2. Configure Credentials
 
-Edit `~/.panos_credentials`:
+The tool supports configuration via environment variables. Edit `~/.panos_credentials`:
 ```bash
-export PANOS_PASSWORD='your-password'
+# Required
 export PANOS_USERNAME='admin'
+export PANOS_PASSWORD='your-password'
+
+# Optional: Bastion/jump host
+# export PANOS_BASTION_HOST='bastion.example.com'
+# export NETSWITCH_USERNAME='bastion-user'
+# export NETSWITCH_PASSWORD='bastion-password'
 ```
 
 Ensure correct permissions:
 ```bash
 chmod 600 ~/.panos_credentials
 ```
+
+Then source it before using the tool:
+```bash
+source ~/.panos_credentials
+```
+
+**Supported Environment Variables:**
+- `PANOS_USERNAME` - Firewall SSH username
+- `PANOS_PASSWORD` - Firewall SSH password
+- `PANOS_BASTION_HOST` - Optional bastion/jump host
+- `NETSWITCH_USERNAME` - Bastion username (tried first)
+- `NETSWITCH_PASSWORD` - Bastion password (tried first)
+- `PANOS_BASTION_USERNAME` - Bastion username (fallback)
+- `PANOS_BASTION_PASSWORD` - Bastion password (fallback)
+
+See [docs/environment_variables.md](docs/environment_variables.md) for detailed configuration options.
 
 ### 3. Test It
 
