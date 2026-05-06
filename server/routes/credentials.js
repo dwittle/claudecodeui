@@ -26,7 +26,7 @@ router.get('/', authenticateToken, (req, res) => {
       }))
     });
   } catch (error) {
-    console.error('[CredentialsAPI] Failed to list credentials:', error);
+    console.error('[CredentialsAPI] Failed to list credentials:', error.message);
     res.status(500).json({
       success: false,
       error: 'Failed to retrieve credentials'
@@ -96,7 +96,7 @@ router.post('/', authenticateToken, async (req, res) => {
         await containerManager.restartUserContainer(req.user.id);
         console.log(`[CredentialsAPI] Container restarted for user ${req.user.id} after credential update`);
       } catch (error) {
-        console.error('[CredentialsAPI] Failed to restart container:', error);
+        console.error('[CredentialsAPI] Failed to restart container:', error.message);
       }
     });
 
@@ -111,7 +111,7 @@ router.post('/', authenticateToken, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('[CredentialsAPI] Failed to create credential:', error);
+    console.error('[CredentialsAPI] Failed to create credential:', error.message);
     res.status(500).json({
       success: false,
       error: 'Failed to save credential',
@@ -155,7 +155,7 @@ router.get('/:id', authenticateToken, (req, res) => {
       }
     });
   } catch (error) {
-    console.error('[CredentialsAPI] Failed to get credential:', error);
+    console.error('[CredentialsAPI] Failed to get credential:', error.message);
     res.status(500).json({
       success: false,
       error: 'Failed to retrieve credential'
@@ -203,7 +203,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
         await containerManager.restartUserContainer(req.user.id);
         console.log(`[CredentialsAPI] Container restarted for user ${req.user.id} after credential deletion`);
       } catch (error) {
-        console.error('[CredentialsAPI] Failed to restart container:', error);
+        console.error('[CredentialsAPI] Failed to restart container:', error.message);
       }
     });
 
@@ -212,7 +212,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       message: 'Credential deleted successfully. Your container will restart to apply changes.'
     });
   } catch (error) {
-    console.error('[CredentialsAPI] Failed to delete credential:', error);
+    console.error('[CredentialsAPI] Failed to delete credential:', error.message);
     res.status(500).json({
       success: false,
       error: 'Failed to delete credential'
@@ -234,7 +234,7 @@ router.get('/audit/logs', authenticateToken, (req, res) => {
       logs
     });
   } catch (error) {
-    console.error('[CredentialsAPI] Failed to get audit logs:', error);
+    console.error('[CredentialsAPI] Failed to get audit logs:', error.message);
     res.status(500).json({
       success: false,
       error: 'Failed to retrieve audit logs'

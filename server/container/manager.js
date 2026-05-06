@@ -214,11 +214,30 @@ class ContainerManager {
         `CLAUDE_CLI_PATH=/opt/cloudcli/node_modules/@anthropic-ai/claude-agent-sdk-linux-x64/claude`,
       ];
 
-      // Add credential environment variables
+      // Add credential environment variables from database
       for (const cred of credentials) {
         if (['env_var', 'api_key', 'password', 'token'].includes(cred.credential_type)) {
           envVars.push(`${cred.credential_name}=${cred.decrypted_value}`);
         }
+      }
+
+      // Copy specific environment variables from host
+      const hostEnvPatterns = [
+        'PANOS_', 'NETSWITCH_', 'AKIPS_'
+      ];
+
+      let copiedFromHost = 0;
+      for (const [key, value] of Object.entries(process.env)) {
+        if (hostEnvPatterns.some(pattern => key.startsWith(pattern))) {
+          // Only add if not already in envVars from credentials
+          if (!envVars.some(v => v.startsWith(`${key}=`))) {
+            envVars.push(`${key}=${value}`);
+            copiedFromHost++;
+          }
+        }
+      }
+      if (copiedFromHost > 0) {
+        console.log(`[ContainerManager] Copied ${copiedFromHost} environment variable(s) from host`);
       }
 
       // Create isolated network

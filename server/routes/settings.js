@@ -97,7 +97,7 @@ router.get('/credentials', async (req, res) => {
     // Don't send the actual credential values for security
     res.json({ credentials });
   } catch (error) {
-    console.error('Error fetching credentials:', error);
+    console.error('Error fetching credentials:', error.message);
     res.status(500).json({ error: 'Failed to fetch credentials' });
   }
 });
@@ -132,7 +132,7 @@ router.post('/credentials', async (req, res) => {
       credential: result
     });
   } catch (error) {
-    console.error('Error creating credential:', error);
+    console.error('Error creating credential:', error.message);
     res.status(500).json({ error: 'Failed to create credential' });
   }
 });
@@ -149,7 +149,7 @@ router.delete('/credentials/:credentialId', async (req, res) => {
       res.status(404).json({ error: 'Credential not found' });
     }
   } catch (error) {
-    console.error('Error deleting credential:', error);
+    console.error('Error deleting credential:', error.message);
     res.status(500).json({ error: 'Failed to delete credential' });
   }
 });
@@ -172,7 +172,7 @@ router.patch('/credentials/:credentialId/toggle', async (req, res) => {
       res.status(404).json({ error: 'Credential not found' });
     }
   } catch (error) {
-    console.error('Error toggling credential:', error);
+    console.error('Error toggling credential:', error.message);
     res.status(500).json({ error: 'Failed to toggle credential' });
   }
 });
