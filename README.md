@@ -112,6 +112,29 @@ podman-compose -f podman-compose.yml up -d
 
 See the [Multi-User Architecture](MULTI_USER_ARCHITECTURE.md) and [Podman Support Guide](docs/PODMAN_SUPPORT.md) for details.
 
+**Credential Management:**
+
+For multi-user container deployments, you can import environment variables from your shell (e.g., API keys, passwords) into worker containers:
+
+```bash
+# Add credentials to ~/.bash_profile
+export PANOS_USERNAME='admin'
+export PANOS_PASSWORD='your-password'
+export AKIPS_API_PASSWORD='your-api-key'
+
+# Import into user's encrypted credential store
+source ~/.bash_profile
+node scripts/import-env.js <username>
+
+# Update existing credentials
+node scripts/import-env.js <username> --force
+
+# Import for all users
+node scripts/import-env.js --all
+```
+
+Credentials are encrypted with AES-256-GCM and automatically injected into containers as environment variables. See [scripts/README.md](scripts/README.md) for details.
+
 #### Docker Sandboxes (Experimental)
 
 Run agents in isolated sandboxes with hypervisor-level isolation. Starts Claude Code by default. Requires the [`sbx` CLI](https://docs.docker.com/ai/sandboxes/get-started/).
