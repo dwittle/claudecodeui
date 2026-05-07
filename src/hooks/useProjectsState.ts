@@ -163,6 +163,12 @@ export function useProjectsState({
       }
       const response = await api.projects();
       if (!response.ok) {
+        // Special case: 502/503 means worker container is not ready yet (new user initialization)
+        if (response.status === 502 || response.status === 503) {
+          console.warn(`Worker container not ready (${response.status}). This is normal for new users during initial container startup.`);
+          // Keep existing projects state, don't crash
+          return;
+        }
         throw new Error(`Failed to fetch projects: ${response.status}`);
       }
       const data = (await response.json()) as unknown;
@@ -179,6 +185,8 @@ export function useProjectsState({
       });
     } catch (error) {
       console.error('Error fetching projects:', error);
+      // Ensure projects state remains valid (empty array) even on error
+      setProjects((prevProjects) => (Array.isArray(prevProjects) ? prevProjects : []));
     } finally {
       if (showLoadingState) {
         setIsLoadingProjects(false);

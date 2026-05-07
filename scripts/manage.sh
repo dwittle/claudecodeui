@@ -34,6 +34,23 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DB_PATH="${DATABASE_PATH:-$HOME/.cloudcli/auth.db}"
 
+# Get podman storage paths from configuration
+get_podman_storage_root() {
+    if ! command -v jq &> /dev/null; then
+        print_warning "jq is not installed. Cannot determine podman storage path."
+        return 1
+    fi
+    podman info --format json 2>/dev/null | jq -r '.store.graphRoot' 2>/dev/null || echo ""
+}
+
+get_podman_volume_path() {
+    if ! command -v jq &> /dev/null; then
+        print_warning "jq is not installed. Cannot determine podman volume path."
+        return 1
+    fi
+    podman info --format json 2>/dev/null | jq -r '.store.volumePath' 2>/dev/null || echo ""
+}
+
 # Function to check if server is running
 is_server_running() {
     # Check for concurrently process or vite (more reliable than server/index.js)
@@ -278,6 +295,27 @@ delete_database() {
     print_info "A fresh environment will be created on next server start"
 }
 
+# Function to list users (simple)
+list_users() {
+    if [ ! -f "$DB_PATH" ]; then
+        print_warning "Database does not exist: $DB_PATH"
+        print_info "No users found. Start the server to create the database."
+        return 0
+    fi
+
+    local user_count=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM users;" 2>/dev/null || echo "0")
+
+    if [ "$user_count" = "0" ]; then
+        print_info "No users found"
+        return 0
+    fi
+
+    print_section "Users ($user_count)"
+    sqlite3 "$DB_PATH" "SELECT id, username, is_active, created_at FROM users;" 2>/dev/null | \
+        awk -F'|' '{printf "  %-3s  %-20s  %-8s  %s\n", $1, $2, ($3 == 1 ? "active" : "inactive"), $4}' || \
+        print_warning "Failed to query users table"
+}
+
 # Function to show database info
 database_info() {
     print_section "Database Information"
@@ -303,6 +341,230 @@ database_info() {
         print_warning "Failed to query containers table"
 }
 
+# Function to remove a specific user
+remove_user() {
+    local username="$1"
+
+    if [ -z "$username" ]; then
+        print_error "Username is required"
+        echo "Usage: $0 remove-user <username>"
+        return 1
+    fi
+
+    print_section "Remove User: $username"
+
+    # Check if database exists
+    if [ ! -f "$DB_PATH" ]; then
+        print_warning "Database does not exist: $DB_PATH"
+        return 0
+    fi
+
+    # Get user ID from database
+    local user_id=$(sqlite3 "$DB_PATH" "SELECT id FROM users WHERE username='$username';" 2>/dev/null)
+
+    if [ -z "$user_id" ]; then
+        print_warning "User '$username' not found in database"
+        return 0
+    fi
+
+    # Find associated resources
+    local container_name="cloudcli-user-${user_id}"
+    local volume_name="cloudcli-data-user-${user_id}"
+    local network_name="cloudcli-net-${user_id}"
+
+    # Get podman storage paths
+    local volume_path=$(get_podman_volume_path)
+    local storage_dir=""
+    if [ -n "$volume_path" ]; then
+        storage_dir="${volume_path}/${volume_name}"
+    fi
+
+    # Check what exists
+    local has_container=false
+    local has_volume=false
+    local has_network=false
+    local has_storage=false
+
+    if podman ps -a --filter "name=^${container_name}$" --format "{{.Names}}" 2>/dev/null | grep -q "^${container_name}$"; then
+        has_container=true
+    fi
+
+    if podman volume ls --filter "name=^${volume_name}$" --format "{{.Name}}" 2>/dev/null | grep -q "^${volume_name}$"; then
+        has_volume=true
+    fi
+
+    if podman network ls --filter "name=^${network_name}$" --format "{{.Name}}" 2>/dev/null | grep -q "^${network_name}$"; then
+        has_network=true
+    fi
+
+    if [ -n "$storage_dir" ] && [ -d "$storage_dir" ]; then
+        has_storage=true
+    fi
+
+    # Show what will be deleted
+    echo -e "${YELLOW}This will delete all data for user: ${username} (ID: ${user_id})${NC}"
+    echo ""
+    echo "Resources to delete:"
+    echo "  - Database entry: $username"
+    if $has_container; then
+        echo "  - Container: $container_name"
+    fi
+    if $has_volume; then
+        echo "  - Volume: $volume_name"
+    fi
+    if $has_network; then
+        echo "  - Network: $network_name"
+    fi
+    if $has_storage; then
+        echo "  - Storage: $storage_dir"
+    fi
+    echo ""
+    read -p "Are you sure? (yes/no): " confirm
+
+    if [ "$confirm" != "yes" ]; then
+        print_info "Cancelled"
+        return 0
+    fi
+
+    # Stop and remove container
+    if $has_container; then
+        print_info "Stopping and removing container: $container_name"
+        podman stop "$container_name" 2>/dev/null || true
+        podman rm -f "$container_name" 2>/dev/null || true
+    fi
+
+    # Remove volume
+    if $has_volume; then
+        print_info "Removing volume: $volume_name"
+        podman volume rm -f "$volume_name" 2>/dev/null || true
+    fi
+
+    # Remove network
+    if $has_network; then
+        print_info "Removing network: $network_name"
+        podman network rm "$network_name" 2>/dev/null || true
+    fi
+
+    # Remove storage directory if it still exists
+    if [ -n "$storage_dir" ] && [ -d "$storage_dir" ]; then
+        print_info "Removing storage directory: $storage_dir"
+        rm -rf "$storage_dir" 2>/dev/null || \
+            print_warning "Failed to remove storage directory (may require elevated permissions)"
+    fi
+
+    # Remove from database
+    print_info "Removing user from database..."
+    sqlite3 "$DB_PATH" "DELETE FROM user_containers WHERE user_id=$user_id;" 2>/dev/null || true
+    sqlite3 "$DB_PATH" "DELETE FROM users WHERE id=$user_id;" 2>/dev/null || true
+
+    print_info "✓ User '$username' (ID: $user_id) removed successfully"
+}
+
+# Function to remove all users
+remove_all_users() {
+    print_section "Remove ALL Users"
+
+    # Check if database exists
+    if [ ! -f "$DB_PATH" ]; then
+        print_warning "Database does not exist: $DB_PATH"
+        return 0
+    fi
+
+    # Get count of users
+    local user_count=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM users;" 2>/dev/null || echo "0")
+
+    if [ "$user_count" = "0" ]; then
+        print_warning "No users found in database"
+        return 0
+    fi
+
+    # Get podman storage paths
+    local volume_path=$(get_podman_volume_path)
+
+    # Find all resources
+    local containers=$(podman ps -a --filter "name=cloudcli-user" --format "{{.Names}}" 2>/dev/null)
+    local volumes=$(podman volume ls --filter "name=cloudcli-data-user" --format "{{.Name}}" 2>/dev/null)
+    local networks=$(podman network ls --filter "label=cloudcli.managed=true" --format "{{.Name}}" 2>/dev/null | grep -v "^podman$")
+    local storage_dirs=""
+    if [ -n "$volume_path" ]; then
+        storage_dirs=$(ls -d "${volume_path}"/cloudcli-data-user-* 2>/dev/null || true)
+    fi
+
+    # Show what will be deleted
+    echo -e "${RED}WARNING: This will delete ALL users and their data!${NC}"
+    echo ""
+    echo "Database users to delete: $user_count"
+    if [ -n "$containers" ]; then
+        echo "Containers to delete: $(echo "$containers" | wc -l)"
+        echo "$containers" | sed 's/^/  - /'
+    fi
+    if [ -n "$volumes" ]; then
+        echo ""
+        echo "Volumes to delete: $(echo "$volumes" | wc -l)"
+        echo "$volumes" | sed 's/^/  - /'
+    fi
+    if [ -n "$networks" ]; then
+        echo ""
+        echo "Networks to delete: $(echo "$networks" | wc -l)"
+        echo "$networks" | sed 's/^/  - /'
+    fi
+    if [ -n "$storage_dirs" ]; then
+        echo ""
+        echo "Storage directories to delete: $(echo "$storage_dirs" | wc -l)"
+        echo "$storage_dirs" | sed 's/^/  - /'
+    fi
+    echo ""
+    read -p "Are you sure? Type 'DELETE ALL' to confirm: " confirm
+
+    if [ "$confirm" != "DELETE ALL" ]; then
+        print_info "Cancelled"
+        return 0
+    fi
+
+    # Stop server if running
+    if is_server_running; then
+        print_info "Stopping server and containers first..."
+        stop_server "--all"
+        sleep 2
+    fi
+
+    # Stop and remove all containers
+    if [ -n "$containers" ]; then
+        print_info "Stopping and removing containers..."
+        echo "$containers" | xargs podman stop 2>/dev/null || true
+        echo "$containers" | xargs podman rm -f 2>/dev/null || true
+    fi
+
+    # Remove all volumes
+    if [ -n "$volumes" ]; then
+        print_info "Removing volumes..."
+        echo "$volumes" | xargs podman volume rm -f 2>/dev/null || true
+    fi
+
+    # Remove all networks
+    if [ -n "$networks" ]; then
+        print_info "Removing networks..."
+        echo "$networks" | xargs podman network rm 2>/dev/null || true
+    fi
+
+    # Remove storage directories
+    if [ -n "$storage_dirs" ]; then
+        print_info "Removing storage directories..."
+        echo "$storage_dirs" | while read -r dir; do
+            rm -rf "$dir" 2>/dev/null || \
+                print_warning "Failed to remove $dir (may require elevated permissions)"
+        done
+    fi
+
+    # Clear database tables
+    print_info "Clearing database tables..."
+    sqlite3 "$DB_PATH" "DELETE FROM user_containers;" 2>/dev/null || true
+    sqlite3 "$DB_PATH" "DELETE FROM users;" 2>/dev/null || true
+
+    print_info "✓ All users and their data removed successfully"
+    print_info "Database file preserved but emptied. Use 'db-delete' to remove completely."
+}
+
 # Function to show help
 show_help() {
     cat << EOF
@@ -316,8 +578,11 @@ Commands:
   stop --containers     Stop worker containers only (leave gateway running)
   restart [--all]       Restart the CloudCLI gateway (add --all to restart workers)
   status                Show server and container status
-  db-info               Show database information
+  list-users            List all users (simple format)
+  db-info               Show database information (detailed)
   db-delete             Delete the user database (requires confirmation)
+  remove-user <name>    Remove a specific user and all their data
+  remove-all-users      Remove ALL users and their data (requires confirmation)
   help                  Show this help message
 
 Examples:
@@ -327,6 +592,10 @@ Examples:
   $0 stop --containers  # Stop worker containers only
   $0 restart --all      # Restart gateway and stop all workers
   $0 status             # Show what's running
+  $0 list-users         # List all users
+  $0 db-info            # Show detailed database information
+  $0 remove-user john   # Remove user 'john' and all their data
+  $0 remove-all-users   # Remove ALL users (requires 'DELETE ALL' confirmation)
   $0 db-delete          # Delete all users and recreate fresh database
 
 Environment Variables:
@@ -358,11 +627,20 @@ case "${1:-help}" in
     status)
         status_server
         ;;
+    list-users|users)
+        list_users
+        ;;
     db-info|info)
         database_info
         ;;
     db-delete|delete)
         delete_database
+        ;;
+    remove-user)
+        remove_user "$2"
+        ;;
+    remove-all-users)
+        remove_all_users
         ;;
     help|-h|--help)
         show_help

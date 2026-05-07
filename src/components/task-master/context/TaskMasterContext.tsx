@@ -114,6 +114,13 @@ export function TaskMasterProvider({ children }: { children: React.ReactNode }) 
 
       const response = await api.get('/projects');
       if (!response.ok) {
+        // Special case: 502/503 means worker container is not ready yet (new user initialization)
+        if (response.status === 502 || response.status === 503) {
+          console.warn(`Worker container not ready (${response.status}). This is normal for new users during initial container startup.`);
+          // Keep existing projects state, don't throw error
+          setIsLoading(false);
+          return;
+        }
         throw new Error(`Failed to fetch projects: ${response.status}`);
       }
 

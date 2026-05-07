@@ -183,8 +183,23 @@ All commands (except `execute`) return JSON-formatted output for easy parsing an
 
 ## Pattern Matching
 
-- Use `*` for wildcard matching: `router*`, `*-core-*`
-- Use `/regex/` for regex patterns: `/^router/`, `/(sw|rtr)/`
+
+When searching for devices in AKiPS, always use regex pattern syntax `/pattern/` instead of wildcard patterns.
+
+**Why:** Wildcard patterns like `b391*` or `*b391*` may return empty results even when matching devices exist. Regex patterns like `/^b391/` work reliably.
+
+**How to apply:** 
+- Use `--pattern "/^prefix/"` for devices starting with a prefix
+- Use `--pattern "/pattern/"` for devices containing a pattern
+- Don't use wildcard syntax like `prefix*` - use regex instead
+
+**Example:**
+```bash
+# ❌ WRONG - May return empty results
+./akips list-devices --pattern "b391*"
+
+# ✅ CORRECT - Returns all devices starting with b391
+./akips list-devices --pattern "/^b391/"
 
 ## Determining Current Device Status
 

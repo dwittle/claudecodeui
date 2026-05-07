@@ -81,6 +81,15 @@ if [ -d "$SCRIPT_DIR/templates" ]; then
 else
     print_warning "⊘ Templates directory not found: $SCRIPT_DIR/templates"
 fi
+
+# Copy CLAUDE.md to target directory root if it exists
+if [ -f "$SCRIPT_DIR/CLAUDE.md" ]; then
+    print_info "Copying CLAUDE.md to project root..."
+    cp "$SCRIPT_DIR/CLAUDE.md" "$TARGET_DIR/"
+    print_info "✓ CLAUDE.md installed successfully"
+else
+    print_warning "⊘ CLAUDE.md not found: $SCRIPT_DIR/CLAUDE.md"
+fi
 echo ""
 
 # Install each skill

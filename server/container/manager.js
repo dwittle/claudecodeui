@@ -574,6 +574,65 @@ class ContainerManager {
   }
 
   /**
+   * Copy settings.json from project root into the worker's .claude directory.
+   *
+   * This provides the worker container with Claude Code configuration including
+   * skills paths, permissions, and other settings.
+   *
+   * Idempotent. Safe to call on every container start.
+   * @private
+   * @param {string} containerId
+   * @param {number} userId
+   */
+  async seedWorkerSettings(containerId, userId) {
+    const settingsPath = path.join(__dirname, '../../settings.json');
+
+    // Check if settings.json exists in repo root
+    if (!existsSync(settingsPath)) {
+      console.log(`[ContainerManager] No settings.json found at ${settingsPath}, skipping`);
+      return;
+    }
+
+    try {
+      // Read settings.json from repo root
+      const settingsContent = await fs.readFile(settingsPath, 'utf8');
+
+      // Validate it's valid JSON
+      JSON.parse(settingsContent);
+
+      // Build a node script that creates .claude directory and writes settings.json
+      const script = `
+        const fs = require('fs');
+        const path = require('path');
+        const claudeDir = '/home/agent/.claude';
+        const settingsPath = path.join(claudeDir, 'settings.json');
+
+        // Create .claude directory if it doesn't exist
+        fs.mkdirSync(claudeDir, { recursive: true });
+
+        // Write settings.json
+        fs.writeFileSync(settingsPath, ${JSON.stringify(settingsContent)}, 'utf8');
+
+        console.log('[seedWorkerSettings] ok', ${userId});
+      `;
+
+      const container = this.runtime.getContainer(containerId);
+      const exec = await container.exec({
+        Cmd: ['node', '-e', script],
+        AttachStdout: true,
+        AttachStderr: true,
+        User: 'agent',
+        WorkingDir: '/opt/cloudcli',
+      });
+      await exec.start({ hijack: true, stdin: false });
+      console.log(`[ContainerManager] Copied settings.json for user ${userId}`);
+    } catch (error) {
+      console.error(`[ContainerManager] Failed to seed settings.json for user ${userId}:`, error.message);
+      // Don't throw - settings.json is optional
+    }
+  }
+
+  /**
    * Start a user's container
    * @param {number} userId
    * @returns {Promise<Object>} Container status
@@ -614,6 +673,14 @@ class ContainerManager {
         // Don't fail startup: the worker-trust auth path doesn't need this row,
         // but downstream queries might. Log and continue.
         console.error(`[ContainerManager] User seed failed for ${userId}:`, err.message);
+      }
+
+      // Copy settings.json into worker's .claude directory for Claude Code configuration
+      try {
+        await this.seedWorkerSettings(containerInfo.container_id, userId);
+      } catch (err) {
+        // Don't fail startup: settings.json is optional
+        console.error(`[ContainerManager] Settings seed failed for ${userId}:`, err.message);
       }
 
       // Update status

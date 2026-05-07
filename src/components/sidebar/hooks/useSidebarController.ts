@@ -338,8 +338,10 @@ export function useSidebarController({
   );
 
   const projectsWithSessionMeta = useMemo(
-    () =>
-      projects.map((project) => {
+    () => {
+      // Defensive: ensure projects is always an array (handles new user/container initialization)
+      const projectsArray = Array.isArray(projects) ? projects : [];
+      return projectsArray.map((project) => {
         const hasMoreOverride = projectHasMoreOverrides[project.name];
         if (hasMoreOverride === undefined) {
           return project;
@@ -349,7 +351,8 @@ export function useSidebarController({
           ...project,
           sessionMeta: { ...project.sessionMeta, hasMore: hasMoreOverride },
         };
-      }),
+      });
+    },
     [projectHasMoreOverrides, projects],
   );
 

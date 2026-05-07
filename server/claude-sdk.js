@@ -745,9 +745,15 @@ async function abortClaudeSDKSession(sessionId) {
 
   try {
     console.log(`Aborting SDK session: ${sessionId}`);
+    console.log(`Session instance type: ${typeof session.instance}, has interrupt: ${typeof session.instance?.interrupt}`);
 
     // Call interrupt() on the query instance
-    await session.instance.interrupt();
+    if (session.instance && typeof session.instance.interrupt === 'function') {
+      await session.instance.interrupt();
+      console.log(`Successfully called interrupt() for session ${sessionId}`);
+    } else {
+      console.warn(`Session ${sessionId} instance does not have interrupt() method`);
+    }
 
     // Update session status
     session.status = 'aborted';
@@ -758,9 +764,11 @@ async function abortClaudeSDKSession(sessionId) {
     // Clean up session
     removeSession(sessionId);
 
+    console.log(`Session ${sessionId} cleanup completed`);
     return true;
   } catch (error) {
     console.error(`Error aborting session ${sessionId}:`, error);
+    console.error('Error stack:', error.stack);
     return false;
   }
 }
