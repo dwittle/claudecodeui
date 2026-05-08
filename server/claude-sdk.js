@@ -822,9 +822,24 @@ function getPendingApprovalsForSession(sessionId) {
  */
 function reconnectSessionWriter(sessionId, newRawWs) {
   const session = getSession(sessionId);
-  if (!session?.writer?.updateWebSocket) return false;
+
+  if (!session) {
+    console.log(`[RECONNECT] Session ${sessionId} not found - cannot reconnect writer`);
+    return false;
+  }
+
+  if (!session.writer) {
+    console.log(`[RECONNECT] Session ${sessionId} has no writer - cannot reconnect`);
+    return false;
+  }
+
+  if (!session.writer.updateWebSocket) {
+    console.log(`[RECONNECT] Session ${sessionId} writer does not support updateWebSocket - cannot reconnect`);
+    return false;
+  }
+
   session.writer.updateWebSocket(newRawWs);
-  console.log(`[RECONNECT] Writer swapped for session ${sessionId}`);
+  console.log(`[RECONNECT] Writer swapped for session ${sessionId} at ${new Date().toISOString()}`);
   return true;
 }
 

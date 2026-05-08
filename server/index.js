@@ -88,6 +88,21 @@ let projectsWatcherDebounceTimer = null;
 const connectedClients = new Set();
 let isGetProjectsRunning = false; // Flag to prevent reentrant calls
 
+// Throttle repeated session status checks to prevent reconnection loops
+const sessionStatusCheckThrottle = new Map(); // sessionId -> last check timestamp
+const SESSION_STATUS_CHECK_MIN_INTERVAL = 1000; // Minimum 1 second between checks for same session
+
+// Clean up old throttle entries every 5 minutes
+setInterval(() => {
+    const now = Date.now();
+    const maxAge = 5 * 60 * 1000; // 5 minutes
+    for (const [sessionId, timestamp] of sessionStatusCheckThrottle.entries()) {
+        if (now - timestamp > maxAge) {
+            sessionStatusCheckThrottle.delete(sessionId);
+        }
+    }
+}, 5 * 60 * 1000);
+
 // Broadcast progress to all connected WebSocket clients
 function broadcastProgress(progress) {
     const message = JSON.stringify({
@@ -1507,7 +1522,27 @@ function handleChatConnection(ws, request) {
                 // Check if a specific session is currently processing
                 const provider = data.provider || 'claude';
                 const sessionId = data.sessionId;
+
+                // Throttle rapid repeated status checks for the same session
+                const now = Date.now();
+                const lastCheck = sessionStatusCheckThrottle.get(sessionId);
+                if (lastCheck && (now - lastCheck) < SESSION_STATUS_CHECK_MIN_INTERVAL) {
+                    console.log(`[SESSION-STATUS] Throttled check for session ${sessionId} (${now - lastCheck}ms since last check)`);
+                    // Still send the response, but skip the actual check and reconnect
+                    writer.send({
+                        type: 'session-status',
+                        sessionId,
+                        provider,
+                        isProcessing: false,
+                        throttled: true
+                    });
+                    return;
+                }
+                sessionStatusCheckThrottle.set(sessionId, now);
+
                 let isActive;
+
+                console.log(`[SESSION-STATUS] Checking status for session ${sessionId} (provider: ${provider}) at ${new Date().toISOString()}`);
 
                 if (provider === 'cursor') {
                     isActive = isCursorSessionActive(sessionId);
@@ -1518,10 +1553,12 @@ function handleChatConnection(ws, request) {
                 } else {
                     // Use Claude Agents SDK
                     isActive = isClaudeSDKSessionActive(sessionId);
+                    console.log(`[SESSION-STATUS] Session ${sessionId} active: ${isActive}`);
                     if (isActive) {
                         // Reconnect the session's writer to the new WebSocket so
                         // subsequent SDK output flows to the refreshed client.
-                        reconnectSessionWriter(sessionId, ws);
+                        const reconnected = reconnectSessionWriter(sessionId, ws);
+                        console.log(`[SESSION-STATUS] Reconnection ${reconnected ? 'successful' : 'failed'} for session ${sessionId}`);
                     }
                 }
 
@@ -1564,10 +1601,14 @@ function handleChatConnection(ws, request) {
         }
     });
 
-    ws.on('close', () => {
-        console.log('🔌 Chat client disconnected');
+    ws.on('close', (code, reason) => {
+        console.log(`🔌 Chat client disconnected at ${new Date().toISOString()} (code: ${code}, reason: ${reason || 'none'})`);
         // Remove from connected clients
         connectedClients.delete(ws);
+    });
+
+    ws.on('error', (error) => {
+        console.error(`[WebSocket] Chat client error at ${new Date().toISOString()}:`, error.message, error.code);
     });
 }
 

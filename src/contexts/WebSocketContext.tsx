@@ -34,7 +34,15 @@ const useWebSocketProviderState = (): WebSocketContextType => {
   const [latestMessage, setLatestMessage] = useState<any>(null);
   const [isConnected, setIsConnected] = useState(false);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectCountRef = useRef(0); // Track consecutive reconnection attempts
+  const lastConnectTimeRef = useRef<number>(0); // Track when we last successfully connected
+  const reconnectDelayRef = useRef(3000); // Current reconnection delay (for exponential backoff)
   const { token } = useAuth();
+
+  const MAX_RECONNECT_ATTEMPTS = 10;
+  const INITIAL_RECONNECT_DELAY = 3000;
+  const MAX_RECONNECT_DELAY = 30000;
+  const STABLE_CONNECTION_THRESHOLD = 30000; // 30 seconds
 
   // Track real unmount only — must not run on every [token] re-run, otherwise
   // React StrictMode's mount→cleanup→mount cycle leaves unmountedRef permanently
@@ -71,11 +79,26 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       const websocket = new WebSocket(wsUrl);
 
       websocket.onopen = () => {
+        const now = Date.now();
+        const timeSinceLastConnect = now - lastConnectTimeRef.current;
+
+        // If connection was stable for STABLE_CONNECTION_THRESHOLD, reset reconnect counter
+        if (timeSinceLastConnect > STABLE_CONNECTION_THRESHOLD) {
+          reconnectCountRef.current = 0;
+          reconnectDelayRef.current = INITIAL_RECONNECT_DELAY;
+          console.log('[WebSocket] Connection stable, reset reconnection counter');
+        }
+
+        lastConnectTimeRef.current = now;
         setIsConnected(true);
         wsRef.current = websocket;
+
         if (hasConnectedRef.current) {
           // This is a reconnect — signal so components can catch up on missed messages
-          setLatestMessage({ type: 'websocket-reconnected', timestamp: Date.now() });
+          console.log(`[WebSocket] Reconnected after ${reconnectCountRef.current} attempts, delay was ${reconnectDelayRef.current}ms`);
+          setLatestMessage({ type: 'websocket-reconnected', timestamp: now, reconnectCount: reconnectCountRef.current });
+        } else {
+          console.log('[WebSocket] Initial connection established');
         }
         hasConnectedRef.current = true;
       };
@@ -89,19 +112,42 @@ const useWebSocketProviderState = (): WebSocketContextType => {
         }
       };
 
-      websocket.onclose = () => {
+      websocket.onclose = (event) => {
         setIsConnected(false);
         wsRef.current = null;
-        
-        // Attempt to reconnect after 3 seconds
+
+        const timeSinceConnect = Date.now() - lastConnectTimeRef.current;
+        console.log(`[WebSocket] Connection closed (code: ${event.code}, reason: ${event.reason || 'none'}, wasClean: ${event.wasClean}, after ${timeSinceConnect}ms)`);
+
+        // Check if we've hit the reconnection limit
+        if (reconnectCountRef.current >= MAX_RECONNECT_ATTEMPTS) {
+          console.error(`[WebSocket] Max reconnection attempts (${MAX_RECONNECT_ATTEMPTS}) reached. Stopping reconnection attempts.`);
+          setLatestMessage({
+            type: 'websocket-max-reconnects',
+            timestamp: Date.now(),
+            attempts: reconnectCountRef.current,
+            message: 'WebSocket connection failed after multiple attempts. Please refresh the page or check your connection.'
+          });
+          return;
+        }
+
+        reconnectCountRef.current++;
+
+        // Exponential backoff: double the delay each time, up to MAX_RECONNECT_DELAY
+        const currentDelay = reconnectDelayRef.current;
+        reconnectDelayRef.current = Math.min(reconnectDelayRef.current * 2, MAX_RECONNECT_DELAY);
+
+        console.log(`[WebSocket] Attempting reconnect #${reconnectCountRef.current} in ${currentDelay}ms`);
+
+        // Attempt to reconnect after delay
         reconnectTimeoutRef.current = setTimeout(() => {
           if (unmountedRef.current) return; // Prevent reconnection if unmounted
           connect();
-        }, 3000);
+        }, currentDelay);
       };
 
       websocket.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        console.error('[WebSocket] Error occurred:', error, 'readyState:', websocket.readyState);
       };
 
     } catch (error) {
